@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import Link from "next/link";
+// import Link from "next/link";  // 未使用のため削除
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
