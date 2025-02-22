@@ -363,6 +363,19 @@ export default function AdminDashboard() {
     };
   }, []);
 
+  const createHistogramData = (data) => ({
+    labels: Object.keys(data),
+    datasets: [
+      {
+        label: 'Count',
+        data: Object.values(data),
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1,
+      },
+    ],
+  });
+
   // 学籍番号別の閲覧時間グラフデータ
   const studentViewChartData = {
     labels: Array.from(new Set(jobViewData.map(d => d.studentId))).sort(),
@@ -576,7 +589,7 @@ export default function AdminDashboard() {
                 <h3 className="text-lg font-semibold mb-2">🔍 選択された情報項目</h3>
                 {Object.keys(columnSelectionData.columnCounts || {}).length > 0 ? (
                   <Pie 
-                    data={columnSelectionChartData}
+                    data={createHistogramData(columnSelectionData.columnCounts || {})}
                     options={{
                       plugins: {
                         legend: {
@@ -597,7 +610,7 @@ export default function AdminDashboard() {
                 <h3 className="text-lg font-semibold mb-2">🔄 使用されたソート条件</h3>
                 {Object.keys(sortingData.sortColumnCounts || {}).length > 0 ? (
                   <Pie 
-                    data={sortingChartData}
+                    data={createHistogramData(sortingData.sortColumnCounts || {})}
                     options={{
                       plugins: {
                         legend: {
@@ -618,7 +631,7 @@ export default function AdminDashboard() {
                 <h3 className="text-lg font-semibold mb-2">🔎 使用されたフィルター</h3>
                 {Object.keys(filterUsageData.filterTypeCounts || {}).length > 0 ? (
                   <Pie 
-                    data={filterUsageChartData}
+                    data={createHistogramData(filterUsageData.filterTypeCounts || {})}
                     options={{
                       plugins: {
                         legend: {

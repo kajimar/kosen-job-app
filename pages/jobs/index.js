@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Bar } from 'react-chartjs-2';
 // import Link from "next/link";  // 未使用のため削除
 
 const supabase = createClient(
@@ -20,10 +19,6 @@ export default function JobsPage() {
     hideUnknownWeeklyHoliday: false,
     hideUnknownSalary: false,
   });
-
-  const [columnSelectionData, setColumnSelectionData] = useState({});
-  const [sortingData, setSortingData] = useState({});
-  const [filterUsageData, setFilterUsageData] = useState({});
 
   // スクロール深度と閲覧時間のトラッキング関数
   const useViewLogging = () => {
@@ -198,34 +193,6 @@ export default function JobsPage() {
     fetchCompanies();
   }, []);
 
-  useEffect(() => {
-    // ヒストグラムデータの更新
-    const updateHistogramData = () => {
-      const columnCounts = {};
-      selectedColumns.forEach(column => {
-        columnCounts[column] = (columnCounts[column] || 0) + 1;
-      });
-      setColumnSelectionData(columnCounts);
-
-      const sortCounts = {};
-      if (sortConfig.key) {
-        const key = `${sortConfig.key} (${sortConfig.direction === 'asc' ? '昇順' : '降順'})`;
-        sortCounts[key] = (sortCounts[key] || 0) + 1;
-      }
-      setSortingData(sortCounts);
-
-      const filterCounts = {};
-      Object.keys(filters).forEach(filter => {
-        if (filters[filter]) {
-          filterCounts[filter] = (filterCounts[filter] || 0) + 1;
-        }
-      });
-      setFilterUsageData(filterCounts);
-    };
-
-    updateHistogramData();
-  }, [selectedColumns, sortConfig, filters]);
-
   // 列選択変更時のログ記録
   useEffect(() => {
     const recordColumnChange = async () => {
@@ -297,19 +264,6 @@ export default function JobsPage() {
     );
   };
 
-  const createHistogramData = (data) => ({
-    labels: Object.keys(data),
-    datasets: [
-      {
-        label: 'Count',
-        data: Object.values(data),
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1,
-      },
-    ],
-  });
-
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="mb-4 space-x-2">
@@ -365,18 +319,6 @@ export default function JobsPage() {
           ))}
         </tbody>
       </table>
-      <div className="mt-8">
-        <h2 className="text-xl font-bold mb-4">🔍 選択された情報項目</h2>
-        <Bar data={createHistogramData(columnSelectionData)} />
-      </div>
-      <div className="mt-8">
-        <h2 className="text-xl font-bold mb-4">🔄 使用されたソート条件</h2>
-        <Bar data={createHistogramData(sortingData)} />
-      </div>
-      <div className="mt-8">
-        <h2 className="text-xl font-bold mb-4">🔎 使用されたフィルター</h2>
-        <Bar data={createHistogramData(filterUsageData)} />
-      </div>
     </div>
   );
 }
