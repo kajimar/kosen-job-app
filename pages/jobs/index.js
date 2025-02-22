@@ -256,6 +256,14 @@ export default function JobsPage() {
     setSortConfig({ key, direction });
   };
 
+  const toggleColumn = (column) => {
+    setSelectedColumns((prevColumns) =>
+      prevColumns.includes(column)
+        ? prevColumns.filter((col) => col !== column)
+        : [...prevColumns, column]
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="mb-4">
@@ -271,6 +279,13 @@ export default function JobsPage() {
         <button onClick={() => toggleFilter('hideUnknownSalary')}>
           {filters.hideUnknownSalary ? "Show Unknown Salary" : "Hide Unknown Salary"}
         </button>
+      </div>
+      <div className="mb-4">
+        {["従業員数", "学士卒採用数", "女性比率", "採用人数", "給与", "ボーナス", "労働時間", "年間休日", "残業時間", "週休"].map((column) => (
+          <button key={column} onClick={() => toggleColumn(column)}>
+            {selectedColumns.includes(column) ? `Hide ${column}` : `Show ${column}`}
+          </button>
+        ))}
       </div>
       <table className="min-w-full bg-white">
         <thead>
