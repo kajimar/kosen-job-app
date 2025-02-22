@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { requireAuth } from "../utils/authHelper";
+import '../styles/globals.css'; // グローバルCSSのインポート
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
