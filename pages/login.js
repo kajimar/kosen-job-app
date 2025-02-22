@@ -17,7 +17,7 @@ export default function Login() {
     e.preventDefault();
     setError(null);
 
-    const { user, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: `${studentId}@inc.kisarazu.ac.jp`, // 学籍番号を元に仮のメールを作成
       password,
     });

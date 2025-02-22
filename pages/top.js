@@ -4,9 +4,6 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 // import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 
-const Bar = dynamic(() => import('react-chartjs-2').then((mod) => mod.Bar), { ssr: false });
-import 'chart.js/auto';
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
