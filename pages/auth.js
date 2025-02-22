@@ -4,12 +4,19 @@ import supabase from "../utils/supabaseClient";
 
 export default function AuthPage() {
   const [studentId, setStudentId] = useState("");  // 学籍番号
+  const [password, setPassword] = useState("");  // パスワード
   const [error, setError] = useState(null);
   const router = useRouter();
 
   const handleLogin = async () => {
     const email = `${studentId}@example.com`;  // Supabase Auth ではメール形式が必要
-    const password = "kosenjbtest!table";  // 固定パスワード
+
+    // 学籍番号の形式を確認
+    const studentIdPattern = /^[a-zA-Z]\d{5}$/;
+    if (!studentIdPattern.test(studentId)) {
+      setError("学籍番号の形式が正しくありません");
+      return;
+    }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -33,6 +40,14 @@ export default function AuthPage() {
         className="border p-2 w-full mb-2"
       />
       
+      <input
+        type="password"
+        placeholder="パスワード"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        className="border p-2 w-full mb-2"
+      />
+
       <button onClick={handleLogin} className="bg-blue-500 text-white px-4 py-2 rounded w-full">
         ログイン
       </button>
