@@ -1,0 +1,31 @@
+/* styles/globals.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 基本設定 */
+body {
+  @apply bg-gray-100 text-gray-900; /* 背景色とテキスト色 */
+  font-family: Arial, sans-serif;
+}
+
+/* リンクのスタイル */
+a {
+  @apply text-blue-500 hover:underline;
+}
+
+/* ボタンの共通スタイル */
+button {
+  @apply px-4 py-2 rounded text-white;
+}
+
+/* プライマリボタン */
+.btn-primary {
+  @apply bg-blue-500 hover:bg-blue-600;
+}
+
+/* セカンダリボタン */
+.btn-secondary {
+  @apply bg-gray-500 hover:bg-gray-600;
+}
