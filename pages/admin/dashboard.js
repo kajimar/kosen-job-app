@@ -78,18 +78,6 @@ export default function AdminDashboard() {
           console.error("🚨 閲覧ログ取得エラー:", viewError);
         } else {
           console.log("📡 就職先DB閲覧ログ:", viewLogs);
-
-          // 学籍番号を付加した閲覧ログを作成
-          const enrichedViewLogs = (viewLogs || []).map(log => {
-            // user_idを使って認証ユーザーを検索
-            const user = processedUsersData.find(u => u.id === log.user_id);
-            return {
-              ...log,
-              studentId: log.student_id || user?.studentId || 'unknown'
-            };
-          });
-          
-          // setJobViewData(enrichedViewLogs); // 未使用のため削除
         }
         
         // 列選択データの取得
