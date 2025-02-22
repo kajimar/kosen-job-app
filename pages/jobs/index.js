@@ -62,6 +62,7 @@ export default function JobsPage() {
                 page: 'jobs',
                 view_time: 0,
                 article_id: null,
+                scroll_depth: 0,
                 timestamp: new Date().toISOString()
               });
 
