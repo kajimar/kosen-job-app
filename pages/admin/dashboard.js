@@ -17,41 +17,64 @@ export default function AdminDashboard() {
   const [sortingData, setSortingData] = useState({});
   const [filterUsageData, setFilterUsageData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [processedUsers, setProcessedUsers] = useState([]); // 追加: ユーザーデータを保存するstate
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Supabase認証ユーザーを取得 - auth.usersテーブルから
-        let { data: users, error: usersError } = await supabase
-          .from('auth_users_view') // ビューまたは専用テーブルを想定
-          .select('id, email');
+        // Supabase認証ユーザーを取得 
+        // まずはauth.usersへの直接アクセスを試みる（管理者権限が必要）
+        let { data: users, error: usersError } = await supabase.auth.admin.listUsers();
         
+        // 管理者権限がない場合、専用ビューから取得を試みる
         if (usersError) {
-          console.error("🚨 ユーザーデータ取得エラー:", usersError);
-        } else {
-          console.log("📡 認証ユーザーデータ:", users);
+          console.log("Auth adminアクセスエラー、別の方法で取得を試みます:", usersError);
+          
+          let { data: viewUsers, error: viewError } = await supabase
+            .from('auth_users_view') // ビューまたは専用テーブルを想定
+            .select('id, email');
+            
+          if (viewError) {
+            console.error("🚨 ユーザーデータ取得エラー:", viewError);
+            // 最後の手段としてプロファイルテーブルから取得を試みる
+            let { data: profiles, error: profilesError } = await supabase
+              .from('profiles')
+              .select('id, email');
+              
+            if (profilesError) {
+              console.error("🚨 プロファイルデータ取得エラー:", profilesError);
+              users = [];
+            } else {
+              users = profiles;
+            }
+          } else {
+            users = viewUsers;
+          }
         }
+        
+        console.log("📡 認証ユーザーデータ:", users);
 
         // ユーザーの学籍番号を抽出（email形式：e19217@inc.kisarazu.ac.jp）
-        const processedUsers = users?.map(user => {
+        const processedUsersData = (users || []).map(user => {
           const email = user.email || '';
           const studentId = email.split('@')[0]; // @より前の部分を学籍番号として抽出
           return {
             ...user,
             studentId
           };
-        }) || [];
+        });
+        
+        // 処理済みユーザーデータをstateに保存
+        setProcessedUsers(processedUsersData);
         
         // 学籍番号をキーとしたマッピングを作成
         const studentIdToUser = {};
-        processedUsers.forEach(user => {
+        processedUsersData.forEach(user => {
           if (user.studentId) {
             studentIdToUser[user.studentId] = user;
           }
         });
-        
-        setStudentData(processedUsers);
 
         // ビューログデータの取得
         let { data: viewLogs, error: viewError } = await supabase
@@ -65,12 +88,12 @@ export default function AdminDashboard() {
           console.log("📡 就職先DB閲覧ログ:", viewLogs);
 
           // 学籍番号を付加した閲覧ログを作成
-          const enrichedViewLogs = viewLogs.map(log => {
+          const enrichedViewLogs = (viewLogs || []).map(log => {
             // user_idを使って認証ユーザーを検索
-            const user = processedUsers.find(u => u.id === log.user_id);
+            const user = processedUsersData.find(u => u.id === log.user_id);
             return {
               ...log,
-              studentId: user?.studentId || 'unknown'
+              studentId: log.student_id || user?.studentId || 'unknown'
             };
           });
           
@@ -79,7 +102,7 @@ export default function AdminDashboard() {
         
         // 列選択データの取得
         let { data: columnData, error: columnError } = await supabase
-          .from('column_selections')
+          .from('mvp_column_selections')
           .select('*');
       
         if (columnError) {
@@ -90,10 +113,10 @@ export default function AdminDashboard() {
           // 学籍番号を付加した列選択データを処理
           if (columnData && columnData.length > 0) {
             const enrichedColumnData = columnData.map(item => {
-              const user = processedUsers.find(u => u.id === item.user_id);
+              const user = processedUsersData.find(u => u.id === item.user_id);
               return {
                 ...item,
-                studentId: user?.studentId || 'unknown'
+                studentId: item.student_id || user?.studentId || 'unknown'
               };
             });
             
@@ -104,7 +127,7 @@ export default function AdminDashboard() {
         
         // ソート操作データの取得
         let { data: sortData, error: sortError } = await supabase
-          .from('sort_operations')
+          .from('mvp_sort_operations')
           .select('*');
           
         if (sortError) {
@@ -115,10 +138,10 @@ export default function AdminDashboard() {
           // 学籍番号を付加したソート操作データを処理
           if (sortData && sortData.length > 0) {
             const enrichedSortData = sortData.map(item => {
-              const user = processedUsers.find(u => u.id === item.user_id);
+              const user = processedUsersData.find(u => u.id === item.user_id);
               return {
                 ...item,
-                studentId: user?.studentId || 'unknown'
+                studentId: item.student_id || user?.studentId || 'unknown'
               };
             });
             
@@ -129,7 +152,7 @@ export default function AdminDashboard() {
         
         // フィルター使用データの取得
         let { data: filterData, error: filterError } = await supabase
-          .from('filter_operations')
+          .from('mvp_filter_operations')
           .select('*');
           
         if (filterError) {
@@ -140,10 +163,10 @@ export default function AdminDashboard() {
           // 学籍番号を付加したフィルター操作データを処理
           if (filterData && filterData.length > 0) {
             const enrichedFilterData = filterData.map(item => {
-              const user = processedUsers.find(u => u.id === item.user_id);
+              const user = processedUsersData.find(u => u.id === item.user_id);
               return {
                 ...item,
-                studentId: user?.studentId || 'unknown'
+                studentId: item.student_id || user?.studentId || 'unknown'
               };
             });
             
@@ -246,7 +269,16 @@ export default function AdminDashboard() {
       
       data.forEach(selection => {
         // 選択された列の情報がJSON形式で保存されていると想定
-        const selectedColumns = selection.selected_columns || [];
+        // JSONパースを試みて失敗したら空配列を使用
+        let selectedColumns = [];
+        try {
+          selectedColumns = typeof selection.selected_columns === 'string' 
+            ? JSON.parse(selection.selected_columns) 
+            : (selection.selected_columns || []);
+        } catch (e) {
+          console.error("列選択データのパースに失敗:", e);
+          selectedColumns = [];
+        }
         
         selectedColumns.forEach(column => {
           if (!columnCounts[column]) {
@@ -266,7 +298,16 @@ export default function AdminDashboard() {
           studentColumnPreferences[studentId] = {};
         }
         
-        const selectedColumns = selection.selected_columns || [];
+        // JSONパースを試みて失敗したら空配列を使用
+        let selectedColumns = [];
+        try {
+          selectedColumns = typeof selection.selected_columns === 'string' 
+            ? JSON.parse(selection.selected_columns) 
+            : (selection.selected_columns || []);
+        } catch (e) {
+          console.error("列選択データのパースに失敗:", e);
+          selectedColumns = [];
+        }
         
         selectedColumns.forEach(column => {
           if (!studentColumnPreferences[studentId][column]) {
@@ -295,24 +336,24 @@ export default function AdminDashboard() {
       .subscribe();
       
     const columnChannel = supabase
-      .channel('realtime:column_selections')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'column_selections' }, payload => {
+      .channel('realtime:mvp_column_selections')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mvp_column_selections' }, payload => {
         console.log('リアルタイム列選択データ:', payload);
         fetchData();
       })
       .subscribe();
       
     const sortChannel = supabase
-      .channel('realtime:sort_operations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sort_operations' }, payload => {
+      .channel('realtime:mvp_sort_operations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mvp_sort_operations' }, payload => {
         console.log('リアルタイムソート操作データ:', payload);
         fetchData();
       })
       .subscribe();
       
     const filterChannel = supabase
-      .channel('realtime:filter_operations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'filter_operations' }, payload => {
+      .channel('realtime:mvp_filter_operations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mvp_filter_operations' }, payload => {
         console.log('リアルタイムフィルター操作データ:', payload);
         fetchData();
       })

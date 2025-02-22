@@ -38,11 +38,16 @@ export default function JobsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          console.log("ログインユーザー:", user.id);
+          console.log("ログインユーザー:", user.id, "メール:", user.email);
+          
+          // メールアドレスから学籍番号を抽出
+          const studentId = user.email.split('@')[0];
+          console.log("学籍番号:", studentId);
           
           // view_logsテーブルに記録
           const { data, error } = await supabase.from('view_logs').insert({
             user_id: user.id,
+            student_id: studentId, // 学籍番号を追加
             page: 'jobs',
             view_time: 0, // 初期値は0、後で更新
             article_id: null, // インタビュー記事の場合に使用
@@ -112,8 +117,12 @@ export default function JobsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
+          // メールアドレスから学籍番号を抽出
+          const studentId = user.email.split('@')[0];
+          
           const { error } = await supabase.from('column_selections').insert({
             user_id: user.id,
+            student_id: studentId, // 学籍番号を追加
             selected_columns: selectedColumns,
             timestamp: new Date().toISOString()
           });
@@ -198,8 +207,12 @@ export default function JobsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
+          // メールアドレスから学籍番号を抽出
+          const studentId = user.email.split('@')[0];
+          
           const { error } = await supabase.from('column_selections').insert({
             user_id: user.id,
+            student_id: studentId, // 学籍番号を追加
             selected_columns: selectedColumns,
             timestamp: new Date().toISOString()
           });
@@ -234,8 +247,12 @@ export default function JobsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
+          // メールアドレスから学籍番号を抽出
+          const studentId = user.email.split('@')[0];
+          
           const { error } = await supabase.from('filter_operations').insert({
             user_id: user.id,
+            student_id: studentId, // 学籍番号を追加
             filter_type: key,
             filter_value: !filters[key], // トグル後の値
             timestamp: new Date().toISOString()
@@ -280,6 +297,9 @@ export default function JobsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
+          // メールアドレスから学籍番号を抽出
+          const studentId = user.email.split('@')[0];
+          
           let direction = "asc";
           if (sortConfig.key === key && sortConfig.direction === "asc") {
             direction = "desc";
@@ -287,6 +307,7 @@ export default function JobsPage() {
           
           const { error } = await supabase.from('sort_operations').insert({
             user_id: user.id,
+            student_id: studentId, // 学籍番号を追加
             sort_column: key,
             sort_direction: direction,
             timestamp: new Date().toISOString()
