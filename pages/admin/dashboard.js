@@ -12,53 +12,190 @@ const supabase = createClient(
 );
 
 export default function AdminDashboard() {
-  const [viewData, setViewData] = useState([]);
   const [jobViewData, setJobViewData] = useState([]);
   const [columnSelectionData, setColumnSelectionData] = useState({});
   const [sortingData, setSortingData] = useState({});
+  const [filterUsageData, setFilterUsageData] = useState({});
+  const [studentData, setStudentData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchViewData = async () => {
-      // 全ビューデータの取得
-      let { data: viewLogs, error: viewError } = await supabase
-        .from('view_logs')
-        .select('*');
-  
-      console.log("📡 ビューログデータ:", viewLogs);
-      if (viewError) console.error("🚨 ビューログ取得エラー:", viewError);
-  
-      // 選択された列のデータを取得（新しいテーブルを想定）
-      let { data: columnData, error: columnError } = await supabase
-        .from('column_selections')
-        .select('*');
-  
-      console.log("📡 列選択データ:", columnData);
-      if (columnError) console.error("🚨 列選択データ取得エラー:", columnError);
-      
-      // ソート操作のデータを取得（新しいテーブルを想定）
-      let { data: sortData, error: sortError } = await supabase
-        .from('sort_operations')
-        .select('*');
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Supabase認証ユーザーを取得 - auth.usersテーブルから
+        let { data: users, error: usersError } = await supabase
+          .from('auth_users_view') // ビューまたは専用テーブルを想定
+          .select('id, email');
         
-      console.log("📡 ソート操作データ:", sortData);
-      if (sortError) console.error("🚨 ソート操作データ取得エラー:", sortError);
-  
-      if (viewLogs && viewLogs.length > 0) {
-        setViewData(viewLogs.filter(d => d.page === 'interviews'));
-        setJobViewData(viewLogs.filter(d => d.page === 'jobs'));
-      }
+        if (usersError) {
+          console.error("🚨 ユーザーデータ取得エラー:", usersError);
+        } else {
+          console.log("📡 認証ユーザーデータ:", users);
+        }
+
+        // ユーザーの学籍番号を抽出（email形式：e19217@inc.kisarazu.ac.jp）
+        const processedUsers = users?.map(user => {
+          const email = user.email || '';
+          const studentId = email.split('@')[0]; // @より前の部分を学籍番号として抽出
+          return {
+            ...user,
+            studentId
+          };
+        }) || [];
+        
+        // 学籍番号をキーとしたマッピングを作成
+        const studentIdToUser = {};
+        processedUsers.forEach(user => {
+          if (user.studentId) {
+            studentIdToUser[user.studentId] = user;
+          }
+        });
+        
+        setStudentData(processedUsers);
+
+        // ビューログデータの取得
+        let { data: viewLogs, error: viewError } = await supabase
+          .from('view_logs')
+          .select('*')
+          .eq('page', 'jobs');
       
-      if (columnData && columnData.length > 0) {
-        // 選択された列の分布を分析
-        const columnStats = processColumnSelectionData(columnData);
-        setColumnSelectionData(columnStats);
-      }
+        if (viewError) {
+          console.error("🚨 閲覧ログ取得エラー:", viewError);
+        } else {
+          console.log("📡 就職先DB閲覧ログ:", viewLogs);
+
+          // 学籍番号を付加した閲覧ログを作成
+          const enrichedViewLogs = viewLogs.map(log => {
+            // user_idを使って認証ユーザーを検索
+            const user = processedUsers.find(u => u.id === log.user_id);
+            return {
+              ...log,
+              studentId: user?.studentId || 'unknown'
+            };
+          });
+          
+          setJobViewData(enrichedViewLogs);
+        }
+        
+        // 列選択データの取得
+        let { data: columnData, error: columnError } = await supabase
+          .from('column_selections')
+          .select('*');
       
-      if (sortData && sortData.length > 0) {
-        // ソート操作の分布を分析
-        const sortStats = processSortingData(sortData);
-        setSortingData(sortStats);
+        if (columnError) {
+          console.error("🚨 列選択データ取得エラー:", columnError);
+        } else {
+          console.log("📡 列選択データ:", columnData);
+          
+          // 学籍番号を付加した列選択データを処理
+          if (columnData && columnData.length > 0) {
+            const enrichedColumnData = columnData.map(item => {
+              const user = processedUsers.find(u => u.id === item.user_id);
+              return {
+                ...item,
+                studentId: user?.studentId || 'unknown'
+              };
+            });
+            
+            const columnStats = processColumnSelectionData(enrichedColumnData);
+            setColumnSelectionData(columnStats);
+          }
+        }
+        
+        // ソート操作データの取得
+        let { data: sortData, error: sortError } = await supabase
+          .from('sort_operations')
+          .select('*');
+          
+        if (sortError) {
+          console.error("🚨 ソート操作データ取得エラー:", sortError);
+        } else {
+          console.log("📡 ソート操作データ:", sortData);
+          
+          // 学籍番号を付加したソート操作データを処理
+          if (sortData && sortData.length > 0) {
+            const enrichedSortData = sortData.map(item => {
+              const user = processedUsers.find(u => u.id === item.user_id);
+              return {
+                ...item,
+                studentId: user?.studentId || 'unknown'
+              };
+            });
+            
+            const sortStats = processSortingData(enrichedSortData);
+            setSortingData(sortStats);
+          }
+        }
+        
+        // フィルター使用データの取得
+        let { data: filterData, error: filterError } = await supabase
+          .from('filter_operations')
+          .select('*');
+          
+        if (filterError) {
+          console.error("🚨 フィルター操作データ取得エラー:", filterError);
+        } else {
+          console.log("📡 フィルター操作データ:", filterData);
+          
+          // 学籍番号を付加したフィルター操作データを処理
+          if (filterData && filterData.length > 0) {
+            const enrichedFilterData = filterData.map(item => {
+              const user = processedUsers.find(u => u.id === item.user_id);
+              return {
+                ...item,
+                studentId: user?.studentId || 'unknown'
+              };
+            });
+            
+            const filterStats = processFilterData(enrichedFilterData);
+            setFilterUsageData(filterStats);
+          }
+        }
+      } catch (err) {
+        console.error("データ取得中にエラーが発生しました:", err);
+      } finally {
+        setLoading(false);
       }
+    };
+    
+    // フィルター操作データを処理する関数
+    const processFilterData = (data) => {
+      // フィルター種類別の使用回数
+      const filterTypeCounts = {};
+      
+      data.forEach(filter => {
+        const filterType = filter.filter_type || 'unknown';
+        
+        if (!filterTypeCounts[filterType]) {
+          filterTypeCounts[filterType] = 0;
+        }
+        filterTypeCounts[filterType]++;
+      });
+      
+      // 学籍番号ごとのフィルター使用傾向
+      const studentFilterPreferences = {};
+      
+      data.forEach(filter => {
+        const studentId = filter.studentId || 'unknown';
+        
+        if (!studentFilterPreferences[studentId]) {
+          studentFilterPreferences[studentId] = {};
+        }
+        
+        const filterType = filter.filter_type || 'unknown';
+        
+        if (!studentFilterPreferences[studentId][filterType]) {
+          studentFilterPreferences[studentId][filterType] = 0;
+        }
+        
+        studentFilterPreferences[studentId][filterType]++;
+      });
+      
+      return {
+        filterTypeCounts,
+        studentFilterPreferences
+      };
     };
     
     // ソート操作データを処理する関数
@@ -78,57 +215,28 @@ export default function AdminDashboard() {
         sortColumnCounts[key]++;
       });
       
-      // ユーザーごとのソートパターンも分析
-      const userSortPatterns = {};
-      data.forEach(sort => {
-        const userId = sort.user_id;
-        const sortColumn = sort.sort_column;
-        const sortDirection = sort.sort_direction || 'asc';
-        
-        const key = `${sortColumn} (${sortDirection === 'asc' ? '昇順' : '降順'})`;
-        
-        if (!userSortPatterns[userId]) {
-          userSortPatterns[userId] = {};
-        }
-        
-        if (!userSortPatterns[userId][key]) {
-          userSortPatterns[userId][key] = 0;
-        }
-        userSortPatterns[userId][key]++;
-      });
+      // 学籍番号ごとのソート傾向
+      const studentSortPreferences = {};
       
-      // 時間的なソートパターンも分析（時間帯ごとの人気ソート列）
-      const timePatterns = {};
       data.forEach(sort => {
-        if (!sort.created_at) return;
+        const studentId = sort.studentId || 'unknown';
         
-        const timestamp = new Date(sort.created_at);
-        const hour = timestamp.getHours();
-        const timeSlot = Math.floor(hour / 4); // 0-5, 6-11, 12-17, 18-23 の4つの時間帯
-        const timeSlotLabel = [
-          '深夜 (0-5時)', 
-          '午前 (6-11時)', 
-          '午後 (12-17時)', 
-          '夜間 (18-23時)'
-        ][timeSlot];
+        if (!studentSortPreferences[studentId]) {
+          studentSortPreferences[studentId] = {};
+        }
         
         const sortColumn = sort.sort_column;
         
-        if (!timePatterns[timeSlotLabel]) {
-          timePatterns[timeSlotLabel] = {};
+        if (!studentSortPreferences[studentId][sortColumn]) {
+          studentSortPreferences[studentId][sortColumn] = 0;
         }
         
-        if (!timePatterns[timeSlotLabel][sortColumn]) {
-          timePatterns[timeSlotLabel][sortColumn] = 0;
-        }
-        
-        timePatterns[timeSlotLabel][sortColumn]++;
+        studentSortPreferences[studentId][sortColumn]++;
       });
       
       return {
         sortColumnCounts,
-        userSortPatterns,
-        timePatterns
+        studentSortPreferences
       };
     };
     
@@ -149,38 +257,41 @@ export default function AdminDashboard() {
         });
       });
       
-      // ユーザーごとの選択パターンも分析
-      const userPatterns = {};
+      // 学籍番号ごとの列選択傾向
+      const studentColumnPreferences = {};
+      
       data.forEach(selection => {
-        const userId = selection.user_id;
-        const selectedColumns = selection.selected_columns || [];
+        const studentId = selection.studentId || 'unknown';
         
-        if (!userPatterns[userId]) {
-          userPatterns[userId] = {};
+        if (!studentColumnPreferences[studentId]) {
+          studentColumnPreferences[studentId] = {};
         }
         
+        const selectedColumns = selection.selected_columns || [];
+        
         selectedColumns.forEach(column => {
-          if (!userPatterns[userId][column]) {
-            userPatterns[userId][column] = 0;
+          if (!studentColumnPreferences[studentId][column]) {
+            studentColumnPreferences[studentId][column] = 0;
           }
-          userPatterns[userId][column]++;
+          
+          studentColumnPreferences[studentId][column]++;
         });
       });
       
       return {
         columnCounts,
-        userPatterns
+        studentColumnPreferences
       };
     };
   
-    fetchViewData();
+    fetchData();
 
-    // リアルタイムリスナー
+    // リアルタイムリスナー設定
     const viewChannel = supabase
       .channel('realtime:view_logs')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'view_logs' }, payload => {
-        console.log('リアルタイムビューデータ:', payload);
-        fetchViewData();
+        console.log('リアルタイム閲覧データ:', payload);
+        fetchData();
       })
       .subscribe();
       
@@ -188,7 +299,7 @@ export default function AdminDashboard() {
       .channel('realtime:column_selections')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'column_selections' }, payload => {
         console.log('リアルタイム列選択データ:', payload);
-        fetchViewData();
+        fetchData();
       })
       .subscribe();
       
@@ -196,7 +307,15 @@ export default function AdminDashboard() {
       .channel('realtime:sort_operations')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sort_operations' }, payload => {
         console.log('リアルタイムソート操作データ:', payload);
-        fetchViewData();
+        fetchData();
+      })
+      .subscribe();
+      
+    const filterChannel = supabase
+      .channel('realtime:filter_operations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'filter_operations' }, payload => {
+        console.log('リアルタイムフィルター操作データ:', payload);
+        fetchData();
       })
       .subscribe();
 
@@ -204,17 +323,49 @@ export default function AdminDashboard() {
       supabase.removeChannel(viewChannel);
       supabase.removeChannel(columnChannel);
       supabase.removeChannel(sortChannel);
+      supabase.removeChannel(filterChannel);
     };
   }, []);
 
-  // 就職先DB閲覧時間グラフデータ
-  const jobChartData = {
-    labels: jobViewData.map((d) => `User ${d.user_id}`),
+  // 学籍番号別の閲覧時間グラフデータ
+  const studentViewChartData = {
+    labels: Array.from(new Set(jobViewData.map(d => d.studentId))).sort(),
     datasets: [
       {
         label: '就職先DB閲覧時間（秒）',
-        data: jobViewData.map((d) => d.view_time),
-        backgroundColor: 'rgba(192, 75, 75, 0.6)',
+        data: Array.from(new Set(jobViewData.map(d => d.studentId))).sort().map(studentId => {
+          const studentLogs = jobViewData.filter(log => log.studentId === studentId);
+          const totalTime = studentLogs.reduce((sum, log) => sum + (log.view_time || 0), 0);
+          return totalTime;
+        }),
+        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+      },
+      {
+        label: '閲覧回数',
+        data: Array.from(new Set(jobViewData.map(d => d.studentId))).sort().map(studentId => {
+          return jobViewData.filter(log => log.studentId === studentId).length;
+        }),
+        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+      }
+    ],
+  };
+  
+  // 列選択分布のグラフデータ
+  const columnSelectionChartData = {
+    labels: Object.keys(columnSelectionData.columnCounts || {}),
+    datasets: [
+      {
+        label: '選択された列の回数',
+        data: Object.values(columnSelectionData.columnCounts || {}),
+        backgroundColor: [
+          'rgba(54, 162, 235, 0.6)',
+          'rgba(255, 99, 132, 0.6)',
+          'rgba(255, 206, 86, 0.6)',
+          'rgba(75, 192, 192, 0.6)',
+          'rgba(153, 102, 255, 0.6)',
+          'rgba(255, 159, 64, 0.6)',
+          'rgba(199, 199, 199, 0.6)',
+        ],
       },
     ],
   };
@@ -239,21 +390,19 @@ export default function AdminDashboard() {
     ],
   };
   
-  // 列選択分布のグラフデータ
-  const columnSelectionChartData = {
-    labels: Object.keys(columnSelectionData.columnCounts || {}),
+  // フィルター使用分布のグラフデータ
+  const filterUsageChartData = {
+    labels: Object.keys(filterUsageData.filterTypeCounts || {}),
     datasets: [
       {
-        label: '選択された列の回数',
-        data: Object.values(columnSelectionData.columnCounts || {}),
+        label: 'フィルター使用回数',
+        data: Object.values(filterUsageData.filterTypeCounts || {}),
         backgroundColor: [
-          'rgba(54, 162, 235, 0.6)',
-          'rgba(255, 99, 132, 0.6)',
-          'rgba(255, 206, 86, 0.6)',
           'rgba(75, 192, 192, 0.6)',
-          'rgba(153, 102, 255, 0.6)',
           'rgba(255, 159, 64, 0.6)',
-          'rgba(199, 199, 199, 0.6)',
+          'rgba(255, 99, 132, 0.6)',
+          'rgba(54, 162, 235, 0.6)',
+          'rgba(153, 102, 255, 0.6)',
         ],
       },
     ],
@@ -263,203 +412,207 @@ export default function AdminDashboard() {
     scales: {
       y: {
         beginAtZero: true,
-        max: jobViewData.length > 0 ? Math.max(...jobViewData.map((d) => d.view_time)) + 10: 100,
+      },
+    },
+    plugins: {
+      legend: {
+        position: 'top',
       },
     },
   };
-
-  // 時間帯別のソートパターンを表示する関数
-  const renderTimeSortPatterns = () => {
-    const timePatterns = sortingData.timePatterns || {};
-    const timeSlots = Object.keys(timePatterns);
-    
-    if (timeSlots.length === 0) return <p>時間帯別ソートパターンデータがありません</p>;
-    
-    return (
-      <div className="mt-6">
-        <h4 className="text-md font-semibold">時間帯別の人気ソート条件</h4>
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white">
-            <thead>
-              <tr>
-                <th className="py-2 px-4 border-b">時間帯</th>
-                <th className="py-2 px-4 border-b">最も人気のソート列</th>
-                <th className="py-2 px-4 border-b">ソート回数</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timeSlots.map(timeSlot => {
-                const sortColumns = timePatterns[timeSlot];
-                const mostPopularColumn = Object.keys(sortColumns).reduce(
-                  (a, b) => sortColumns[a] > sortColumns[b] ? a : b,
-                  Object.keys(sortColumns)[0]
-                );
-                
-                return (
-                  <tr key={timeSlot}>
-                    <td className="py-2 px-4 border-b">{timeSlot}</td>
-                    <td className="py-2 px-4 border-b">{mostPopularColumn}</td>
-                    <td className="py-2 px-4 border-b">{sortColumns[mostPopularColumn]}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
   
-  // 特定のユーザーの列選択パターンを表示する関数
-  const renderUserColumnSelections = () => {
-    const userPatterns = columnSelectionData.userPatterns || {};
-    const userIds = Object.keys(userPatterns);
+  // 特定の学生の最近の活動を表示する関数
+  const renderMostActiveStudents = () => {
+    // 閲覧回数でユーザーをグループ化
+    const studentActivity = {};
     
-    if (userIds.length === 0) return <p>ユーザー選択パターンデータがありません</p>;
+    jobViewData.forEach(log => {
+      const studentId = log.studentId || 'unknown';
+      if (!studentActivity[studentId]) {
+        studentActivity[studentId] = {
+          viewCount: 0,
+          totalTime: 0,
+          lastActive: null
+        };
+      }
+      
+      studentActivity[studentId].viewCount++;
+      studentActivity[studentId].totalTime += log.view_time || 0;
+      
+      const logDate = new Date(log.created_at || log.timestamp || Date.now());
+      if (!studentActivity[studentId].lastActive || logDate > new Date(studentActivity[studentId].lastActive)) {
+        studentActivity[studentId].lastActive = logDate;
+      }
+    });
+    
+    // 閲覧回数の多い順にソート
+    const topStudents = Object.entries(studentActivity)
+      .map(([studentId, stats]) => ({
+        studentId,
+        viewCount: stats.viewCount,
+        totalTime: stats.totalTime,
+        averageTime: stats.totalTime / stats.viewCount,
+        lastActive: stats.lastActive
+      }))
+      .sort((a, b) => b.viewCount - a.viewCount)
+      .slice(0, 10);
+    
+    if (topStudents.length === 0) return <p className="text-gray-600">学生活動データがありません</p>;
     
     return (
-      <div className="mt-6">
-        <h4 className="text-md font-semibold">ユーザー別の選択傾向（上位5ユーザー）</h4>
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white">
-            <thead>
-              <tr>
-                <th className="py-2 px-4 border-b">ユーザーID</th>
-                <th className="py-2 px-4 border-b">最も頻繁に選択する列</th>
-                <th className="py-2 px-4 border-b">選択回数</th>
+      <div className="mt-6 overflow-x-auto">
+        <h4 className="text-lg font-semibold mb-2">最もアクティブな学生（閲覧回数上位10名）</h4>
+        <table className="min-w-full bg-white border">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="py-2 px-4 border-b">学籍番号</th>
+              <th className="py-2 px-4 border-b">閲覧回数</th>
+              <th className="py-2 px-4 border-b">合計閲覧時間</th>
+              <th className="py-2 px-4 border-b">平均閲覧時間</th>
+              <th className="py-2 px-4 border-b">最終アクセス</th>
+            </tr>
+          </thead>
+          <tbody>
+            {topStudents.map(student => (
+              <tr key={student.studentId} className="hover:bg-gray-50">
+                <td className="py-2 px-4 border-b font-medium">{student.studentId}</td>
+                <td className="py-2 px-4 border-b text-center">{student.viewCount}回</td>
+                <td className="py-2 px-4 border-b text-center">{student.totalTime.toFixed(1)}秒</td>
+                <td className="py-2 px-4 border-b text-center">{student.averageTime.toFixed(1)}秒/回</td>
+                <td className="py-2 px-4 border-b">
+                  {student.lastActive ? student.lastActive.toLocaleString('ja-JP') : '-'}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {userIds.slice(0, 5).map(userId => {
-                const userColumns = userPatterns[userId];
-                const mostSelectedColumn = Object.keys(userColumns).reduce(
-                  (a, b) => userColumns[a] > userColumns[b] ? a : b,
-                  Object.keys(userColumns)[0]
-                );
-                
-                return (
-                  <tr key={userId}>
-                    <td className="py-2 px-4 border-b">User {userId}</td>
-                    <td className="py-2 px-4 border-b">{mostSelectedColumn}</td>
-                    <td className="py-2 px-4 border-b">{userColumns[mostSelectedColumn]}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-6 rounded shadow-md w-full max-w-5xl">
-        <h2 className="text-2xl font-bold mb-4">就職先DB分析ダッシュボード</h2>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="bg-white p-6 rounded shadow-md w-full max-w-6xl mx-auto">
+        <h2 className="text-2xl font-bold mb-4">就職先DB学生利用分析ダッシュボード</h2>
         
-        {/* 就職先DB閲覧時間グラフ */}
-        <h3 className="text-lg font-semibold mt-4">📊 就職先DBの閲覧データ</h3>
-        {jobViewData.length > 0 ? (
-          <Bar data={jobChartData} options={chartOptions} />
-        ) : (
-          <p className="text-gray-600">データを取得中...</p>
-        )}
-        
-        {/* 列選択分布グラフ */}
-        <h3 className="text-lg font-semibold mt-8">🔍 最も選択されている情報項目</h3>
-        {Object.keys(columnSelectionData.columnCounts || {}).length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Bar 
-                data={columnSelectionChartData} 
-                options={{
-                  indexAxis: 'y',
-                  plugins: {
-                    legend: {
-                      display: false
-                    }
-                  }
-                }} 
-              />
-            </div>
-            <div>
-              <Pie 
-                data={columnSelectionChartData}
-                options={{
-                  plugins: {
-                    legend: {
-                      position: 'right'
-                    }
-                  }
-                }} 
-              />
-            </div>
+        {loading ? (
+          <div className="flex justify-center items-center h-40">
+            <p className="text-lg text-gray-600">データ読み込み中...</p>
           </div>
         ) : (
-          <p className="text-gray-600">列選択データを取得中...</p>
-        )}
-        
-        {/* ソート操作分布グラフ */}
-        <h3 className="text-lg font-semibold mt-8">🔄 最も使用されているソート条件</h3>
-        {Object.keys(sortingData.sortColumnCounts || {}).length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Bar 
-                data={sortingChartData} 
-                options={{
-                  indexAxis: 'y',
-                  plugins: {
-                    legend: {
-                      display: false
-                    }
-                  }
-                }} 
-              />
+          <>
+            {/* 概要情報 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-blue-800">総閲覧回数</h3>
+                <p className="text-3xl font-bold text-blue-900">{jobViewData.length}</p>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-green-800">ユニークユーザー数</h3>
+                <p className="text-3xl font-bold text-green-900">
+                  {new Set(jobViewData.map(d => d.studentId)).size}
+                </p>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-purple-800">平均閲覧時間</h3>
+                <p className="text-3xl font-bold text-purple-900">
+                  {jobViewData.length > 0 
+                    ? `${(jobViewData.reduce((sum, d) => sum + (d.view_time || 0), 0) / jobViewData.length).toFixed(1)}秒` 
+                    : '0秒'}
+                </p>
+              </div>
             </div>
-            <div>
-              <Pie 
-                data={sortingChartData}
-                options={{
-                  plugins: {
-                    legend: {
-                      position: 'right'
-                    }
-                  }
-                }} 
-              />
+            
+            {/* 学生別の閲覧データ */}
+            <h3 className="text-lg font-semibold mt-6 mb-3">👩‍🎓 学籍番号別の利用状況</h3>
+            {jobViewData.length > 0 ? (
+              <Bar data={studentViewChartData} options={chartOptions} />
+            ) : (
+              <p className="text-gray-600">閲覧データがありません</p>
+            )}
+            
+            {/* アクティブな学生のテーブル */}
+            {renderMostActiveStudents()}
+            
+            {/* 列選択・ソート・フィルター分析 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">🔍 選択された情報項目</h3>
+                {Object.keys(columnSelectionData.columnCounts || {}).length > 0 ? (
+                  <Pie 
+                    data={columnSelectionChartData}
+                    options={{
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                          labels: {
+                            boxWidth: 15
+                          }
+                        }
+                      }
+                    }} 
+                  />
+                ) : (
+                  <p className="text-gray-600">列選択データがありません</p>
+                )}
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-2">🔄 使用されたソート条件</h3>
+                {Object.keys(sortingData.sortColumnCounts || {}).length > 0 ? (
+                  <Pie 
+                    data={sortingChartData}
+                    options={{
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                          labels: {
+                            boxWidth: 15
+                          }
+                        }
+                      }
+                    }} 
+                  />
+                ) : (
+                  <p className="text-gray-600">ソート操作データがありません</p>
+                )}
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-2">🔎 使用されたフィルター</h3>
+                {Object.keys(filterUsageData.filterTypeCounts || {}).length > 0 ? (
+                  <Pie 
+                    data={filterUsageChartData}
+                    options={{
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                          labels: {
+                            boxWidth: 15
+                          }
+                        }
+                      }
+                    }} 
+                  />
+                ) : (
+                  <p className="text-gray-600">フィルター操作データがありません</p>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <p className="text-gray-600">ソート操作データを取得中...</p>
+            
+            {/* インサイトと推奨事項 */}
+            <div className="mt-8 p-4 bg-blue-50 rounded">
+              <h3 className="text-lg font-semibold text-blue-800">💡 分析インサイト</h3>
+              <ul className="list-disc pl-5 mt-2 text-blue-900">
+                <li>最もアクティブな学生（例：e19217）は特に熱心に就職活動を行っている可能性があります</li>
+                <li>よく選ばれる情報項目（給与、年間休日など）は学生が最も重視する就職条件を示しています</li>
+                <li>特定の条件でのソートが多いことから、その条件が就職先選びの決め手になっている可能性があります</li>
+                <li>閲覧データのパターンから、就職活動の本格化時期が見えてきます</li>
+                <li>フィルター使用状況から、学生が避けたい条件（残業時間不明など）を把握できます</li>
+              </ul>
+            </div>
+          </>
         )}
-        
-        {/* ユーザー別選択パターン */}
-        <h3 className="text-lg font-semibold mt-8">👥 ユーザー行動分析</h3>
-        {Object.keys(columnSelectionData.userPatterns || {}).length > 0 ? (
-          renderUserColumnSelections()
-        ) : (
-          <p className="text-gray-600">ユーザー選択パターンデータを取得中...</p>
-        )}
-        
-        {/* 時間帯別ソートパターン */}
-        <h3 className="text-lg font-semibold mt-8">🕒 時間帯別ソート行動分析</h3>
-        {Object.keys(sortingData.timePatterns || {}).length > 0 ? (
-          renderTimeSortPatterns()
-        ) : (
-          <p className="text-gray-600">時間帯別ソートパターンデータを取得中...</p>
-        )}
-        
-        {/* インサイトと推奨事項 */}
-        <div className="mt-8 p-4 bg-blue-50 rounded">
-          <h3 className="text-lg font-semibold text-blue-800">💡 分析インサイト</h3>
-          <ul className="list-disc pl-5 mt-2 text-blue-900">
-            <li>最も選択されている情報は何かを把握し、その情報をより充実させることでユーザー満足度を向上できます</li>
-            <li>あまり選択されていない項目は、有用性を再評価するか、より見つけやすくする改善が必要かもしれません</li>
-            <li>ユーザーごとの選択パターンから、パーソナライズされた情報提供が可能です</li>
-            <li>最も使用されているソート条件は、ユーザーが重視している企業比較のポイントを示しています</li>
-            <li>時間帯別のソート傾向から、ユーザーの就活行動パターンを理解できます</li>
-          </ul>
-        </div>
       </div>
     </div>
   );
