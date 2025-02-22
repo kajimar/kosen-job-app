@@ -12,7 +12,7 @@ export default function JobsPage() {
   const [selectedColumns, setSelectedColumns] = useState([
     "年間休日", "給与"
   ]);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({ key: "給与", direction: "asc" });
   const [filters, setFilters] = useState({
     hideUnknownHolidays: false,
     hideUnknownOvertime: false,
@@ -301,7 +301,7 @@ export default function JobsPage() {
                 className="border-b-2 border-gray-300 px-4 py-2 text-left cursor-pointer"
                 onClick={() => requestSort(column)}
               >
-                {column}
+                {column} {sortConfig.key === column ? (sortConfig.direction === "asc" ? "▲" : "▼") : ""}
               </th>
             ))}
           </tr>
