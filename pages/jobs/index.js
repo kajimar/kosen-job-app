@@ -269,16 +269,16 @@ export default function JobsPage() {
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="mb-4 space-x-2">
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownHolidays')}>
-          {filters.hideUnknownHolidays ? "Show Unknown Holidays" : "Hide Unknown Holidays"}
+          {filters.hideUnknownHolidays ? "✅ 休日不明" : "❌ 休日不明"}
         </button>
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownOvertime')}>
-          {filters.hideUnknownOvertime ? "Show Unknown Overtime" : "Hide Unknown Overtime"}
+          {filters.hideUnknownOvertime ? "✅ 残業不明" : "❌ 残業不明"}
         </button>
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownWeeklyHoliday')}>
-          {filters.hideUnknownWeeklyHoliday ? "Show Unknown Weekly Holiday" : "Hide Unknown Weekly Holiday"}
+          {filters.hideUnknownWeeklyHoliday ? "✅ 週休不明" : "❌ 週休不明"}
         </button>
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownSalary')}>
-          {filters.hideUnknownSalary ? "Show Unknown Salary" : "Hide Unknown Salary"}
+          {filters.hideUnknownSalary ? "✅ 給与不明" : "❌ 給与不明"}
         </button>
       </div>
       <div className="mb-4 space-x-2">
@@ -288,7 +288,7 @@ export default function JobsPage() {
             className={`px-4 py-2 rounded ${selectedColumns.includes(column) ? 'bg-green-500 text-white' : 'bg-gray-300'}`}
             onClick={() => toggleColumn(column)}
           >
-            {selectedColumns.includes(column) ? `Hide ${column}` : `Show ${column}`}
+            {selectedColumns.includes(column) ? `❌ ${column}` : `✅ ${column}`}
           </button>
         ))}
       </div>
