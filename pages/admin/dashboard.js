@@ -17,7 +17,6 @@ export default function AdminDashboard() {
   const [sortingData, setSortingData] = useState({});
   const [filterUsageData, setFilterUsageData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [processedUsers, setProcessedUsers] = useState([]); // 追加: ユーザーデータを保存するstate
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,9 +63,6 @@ export default function AdminDashboard() {
             studentId
           };
         });
-        
-        // 処理済みユーザーデータをstateに保存
-        setProcessedUsers(processedUsersData);
         
         // 学籍番号をキーとしたマッピングを作成
         const studentIdToUser = {};
