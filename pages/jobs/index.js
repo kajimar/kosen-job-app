@@ -228,44 +228,6 @@ export default function JobsPage() {
     }
   }, [selectedColumns]);
 
-  // 以下は既存のメソッド（toggleColumn、toggleFilter、requestSort等）
-  const toggleColumn = (column) => {
-    setSelectedColumns((prevColumns) =>
-      prevColumns.includes(column)
-        ? prevColumns.filter((col) => col !== column)
-        : [...prevColumns, column]
-    );
-  };
-
-  const toggleFilter = (key) => {
-    const recordFilterUsage = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          const studentId = user.email.split('@')[0];
-          
-          const { error } = await supabase.from('mvp_filter_operations').insert({
-            user_id: user.id,
-            student_id: studentId,
-            filter_type: key,
-            filter_value: !filters[key],
-            timestamp: new Date().toISOString()
-          });
-          
-          if (error) {
-            console.error("フィルター使用記録エラー:", error);
-          }
-        }
-      } catch (err) {
-        console.error("フィルター使用記録中にエラー:", err);
-      }
-    };
-    
-    recordFilterUsage();
-    setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
   // 残りのコードは以前と同じ（フィルタリング、ソート、レンダリングロジック）
   const filteredCompanies = companies.filter((company) => {
     if (filters.hideUnknownHolidays && company.年間休日 === "不明") return false;
@@ -285,45 +247,6 @@ export default function JobsPage() {
       sensitivity: "base",
     }) * (sortConfig.direction === "asc" ? 1 : -1);
   });
-
-  const requestSort = (key) => {
-    const recordSortOperation = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          const studentId = user.email.split('@')[0];
-          
-          let direction = "asc";
-          if (sortConfig.key === key && sortConfig.direction === "asc") {
-            direction = "desc";
-          }
-          
-          const { error } = await supabase.from('mvp_sort_operations').insert({
-            user_id: user.id,
-            student_id: studentId,
-            sort_column: key,
-            sort_direction: direction,
-            timestamp: new Date().toISOString()
-          });
-          
-          if (error) {
-            console.error("ソート操作記録エラー:", error);
-          }
-        }
-      } catch (err) {
-        console.error("ソート操作記録中にエラー:", err);
-      }
-    };
-    
-    recordSortOperation();
-    
-    let direction = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
-  };
 
   // レンダリングのためのコードは以前と同じ
   return (
