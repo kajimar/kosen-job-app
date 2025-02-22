@@ -9,7 +9,7 @@ function MyApp({ Component, pageProps }) {
     if (router.pathname !== "/auth") {
       requireAuth(router);
     }
-  }, [router.pathname]);
+  }, [router]);
 
   return <Component {...pageProps} />;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+// import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 
 const Bar = dynamic(() => import('react-chartjs-2').then((mod) => mod.Bar), { ssr: false });
 import 'chart.js/auto';

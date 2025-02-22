@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import Link from 'next/link';
+// import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 
 const Bar = dynamic(() => import('react-chartjs-2').then((mod) => mod.Bar), { ssr: false });
 import 'chart.js/auto';
@@ -31,9 +32,15 @@ export default function TopPage() {
         
         {/* ナビゲーション */}
         <div className="flex flex-col space-y-4 mb-6">
-          <a href="/jobs" className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700">就職先DBページへ</a>
-          <a href="/admin/dashboard" className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-700">管理ダッシュボードへ</a>
-          <a href="/interviews" className="bg-purple-500 text-white py-2 px-4 rounded hover:bg-purple-700">インタビュー一覧へ</a>
+          <Link href="/jobs">
+            <a className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700">就職先DBページへ</a>
+          </Link>
+          <Link href="/admin/dashboard">
+            <a className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-700">管理ダッシュボードへ</a>
+          </Link>
+          <Link href="/interviews">
+            <a className="bg-purple-500 text-white py-2 px-4 rounded hover:bg-purple-700">インタビュー一覧へ</a>
+          </Link>
         </div>
 
         <h3 className="text-xl font-semibold mb-4">インタビュー一覧</h3>
@@ -41,9 +48,11 @@ export default function TopPage() {
           <ul>
             {interviews.map((interview) => (
               <li key={interview.id} className="border-b py-2">
-                <a href={`/interviews/${interview.id}`} className="text-blue-600 font-bold hover:underline">
-                  {interview.title}
-                </a>
+                <Link href={`/interviews/${interview.id}`}>
+                  <a className="text-blue-600 font-bold hover:underline">
+                    {interview.title}
+                  </a>
+                </Link>
               </li>
             ))}
           </ul>
