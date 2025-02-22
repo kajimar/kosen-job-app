@@ -120,10 +120,10 @@ export default function JobsPage() {
           // メールアドレスから学籍番号を抽出
           const studentId = user.email.split('@')[0];
           
-          const { error } = await supabase.from('column_selections').insert({
+          const { error } = await supabase.from('mvp_column_selections').insert({
             user_id: user.id,
             student_id: studentId, // 学籍番号を追加
-            selected_columns: selectedColumns,
+            selected_colmns: selectedColumns, // DBのカラム名に合わせる
             timestamp: new Date().toISOString()
           });
           
@@ -210,10 +210,10 @@ export default function JobsPage() {
           // メールアドレスから学籍番号を抽出
           const studentId = user.email.split('@')[0];
           
-          const { error } = await supabase.from('column_selections').insert({
+          const { error } = await supabase.from('mvp_column_selections').insert({
             user_id: user.id,
             student_id: studentId, // 学籍番号を追加
-            selected_columns: selectedColumns,
+            selected_colmns: selectedColumns, // DBのカラム名に合わせる
             timestamp: new Date().toISOString()
           });
           
@@ -250,7 +250,7 @@ export default function JobsPage() {
           // メールアドレスから学籍番号を抽出
           const studentId = user.email.split('@')[0];
           
-          const { error } = await supabase.from('filter_operations').insert({
+          const { error } = await supabase.from('mvp_filter_operations').insert({
             user_id: user.id,
             student_id: studentId, // 学籍番号を追加
             filter_type: key,
@@ -305,7 +305,7 @@ export default function JobsPage() {
             direction = "desc";
           }
           
-          const { error } = await supabase.from('sort_operations').insert({
+          const { error } = await supabase.from('mvp_sort_operations').insert({
             user_id: user.id,
             student_id: studentId, // 学籍番号を追加
             sort_column: key,
