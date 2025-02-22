@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 // import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 
