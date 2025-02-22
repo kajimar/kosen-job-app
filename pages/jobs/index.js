@@ -10,8 +10,7 @@ const supabase = createClient(
 export default function JobsPage() {
   const [companies, setCompanies] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([
-    "従業員数", "学士卒採用数", "女性比率", "採用人数", 
-    "給与", "ボーナス", "労働時間", "年間休日", "残業時間", "週休"
+    "年間休日", "給与"
   ]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [filters, setFilters] = useState({
@@ -269,16 +268,16 @@ export default function JobsPage() {
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="mb-4 space-x-2">
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownHolidays')}>
-          {filters.hideUnknownHolidays ? "✅ 休日不明" : "❌ 休日不明"}
+          {filters.hideUnknownHolidays ? "❌ 休日不明" : "✅ 休日不明"}
         </button>
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownOvertime')}>
-          {filters.hideUnknownOvertime ? "✅ 残業不明" : "❌ 残業不明"}
+          {filters.hideUnknownOvertime ? "❌ 残業不明" : "✅ 残業不明"}
         </button>
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownWeeklyHoliday')}>
-          {filters.hideUnknownWeeklyHoliday ? "✅ 週休不明" : "❌ 週休不明"}
+          {filters.hideUnknownWeeklyHoliday ? "❌ 週休不明" : "✅ 週休不明"}
         </button>
         <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownSalary')}>
-          {filters.hideUnknownSalary ? "✅ 給与不明" : "❌ 給与不明"}
+          {filters.hideUnknownSalary ? "❌ 給与不明" : "✅ 給与不明"}
         </button>
       </div>
       <div className="mb-4 space-x-2">
@@ -288,13 +287,14 @@ export default function JobsPage() {
             className={`px-4 py-2 rounded ${selectedColumns.includes(column) ? 'bg-green-500 text-white' : 'bg-gray-300'}`}
             onClick={() => toggleColumn(column)}
           >
-            {selectedColumns.includes(column) ? `❌ ${column}` : `✅ ${column}`}
+            {selectedColumns.includes(column) ? `✅ ${column}` : `❌ ${column}`}
           </button>
         ))}
       </div>
       <table className="min-w-full bg-white border">
         <thead>
           <tr>
+            <th className="border-b-2 border-gray-300 px-4 py-2 text-left">企業名</th>
             {selectedColumns.map((column) => (
               <th
                 key={column}
@@ -309,6 +309,7 @@ export default function JobsPage() {
         <tbody>
           {sortedCompanies.map((company) => (
             <tr key={company.id} className="hover:bg-gray-100">
+              <td className="border-b border-gray-300 px-4 py-2">{company.企業名}</td>
               {selectedColumns.map((column) => (
                 <td key={column} className="border-b border-gray-300 px-4 py-2">
                   {company[column]}
