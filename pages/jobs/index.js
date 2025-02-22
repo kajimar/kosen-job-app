@@ -288,7 +288,7 @@ export default function JobsPage() {
               />
             </button>
             <span className="ml-3 text-gray-700">
-              休日不明
+              年間休日
               <span className="text-xs ml-2 text-gray-500">
                 {filters.hideUnknownHolidays ? '(非表示中)' : '(表示中)'}
               </span>
@@ -308,7 +308,7 @@ export default function JobsPage() {
               />
             </button>
             <span className="ml-3 text-gray-700">
-              残業不明
+              残業時間
               <span className="text-xs ml-2 text-gray-500">
                 {filters.hideUnknownOvertime ? '(非表示中)' : '(表示中)'}
               </span>
@@ -328,7 +328,7 @@ export default function JobsPage() {
               />
             </button>
             <span className="ml-3 text-gray-700">
-              週休不明
+              週休
               <span className="text-xs ml-2 text-gray-500">
                 {filters.hideUnknownWeeklyHoliday ? '(非表示中)' : '(表示中)'}
               </span>
@@ -348,7 +348,7 @@ export default function JobsPage() {
               />
             </button>
             <span className="ml-3 text-gray-700">
-              給与不明
+              給与
               <span className="text-xs ml-2 text-gray-500">
                 {filters.hideUnknownSalary ? '(非表示中)' : '(表示中)'}
               </span>
@@ -396,66 +396,80 @@ export default function JobsPage() {
       
       {/* データテーブル */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto w-full">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[8rem]">
-                  企業名
-                </th>
-                {selectedColumns.map((column) => (
-                  <th
-                    key={column}
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 min-w-[8rem]"
-                    onClick={() => requestSort(column)}
-                  >
-                    <div className="flex items-center">
-                      <span>{column}</span>
-                      <span className="ml-1">
-                        {sortConfig.key === column && (
-                          sortConfig.direction === "asc" 
-                            ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                              </svg>
-                            : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                        )}
-                      </span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedCompanies.length > 0 ? (
-                sortedCompanies.map((company) => (
-                  <tr key={company.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 min-w-[8rem]">
-                      {company.企業名}
-                    </td>
-                    {selectedColumns.map((column) => (
-                      <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 min-w-[8rem]">
-                        {company[column]}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td 
-                    colSpan={selectedColumns.length + 1} 
-                    className="px-6 py-4 text-center text-sm text-gray-500"
-                  >
-                    該当する企業データがありません
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        {/* テーブル上部のスクロールガイダンス */}
+        <div className="py-3 px-4 text-sm text-gray-600 text-center border-b bg-gray-50 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m-8 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          横にスワイプするとすべてのデータを確認できます
         </div>
-        <div className="py-2 px-4 text-xs text-gray-500 text-center border-t">
-          表を横にスクロールすると、すべての列を見ることができます
+        
+        <div className="relative">
+          {/* スクロールインジケーター */}
+          <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-gray-100 to-transparent z-10 pointer-events-none flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+          
+          <div className="overflow-x-auto w-full pb-2">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[8rem]">
+                    企業名
+                  </th>
+                  {selectedColumns.map((column) => (
+                    <th
+                      key={column}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 min-w-[8rem]"
+                      onClick={() => requestSort(column)}
+                    >
+                      <div className="flex items-center">
+                        <span>{column}</span>
+                        <span className="ml-1">
+                          {sortConfig.key === column && (
+                            sortConfig.direction === "asc" 
+                              ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                              : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                          )}
+                        </span>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sortedCompanies.length > 0 ? (
+                  sortedCompanies.map((company) => (
+                    <tr key={company.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 min-w-[8rem]">
+                        {company.企業名}
+                      </td>
+                      {selectedColumns.map((column) => (
+                        <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 min-w-[8rem]">
+                          {company[column]}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td 
+                      colSpan={selectedColumns.length + 1} 
+                      className="px-6 py-4 text-center text-sm text-gray-500"
+                    >
+                      該当する企業データがありません
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
