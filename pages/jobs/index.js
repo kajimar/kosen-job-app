@@ -140,7 +140,6 @@ export default function JobsPage() {
   // 以下は既存のコードと同じ（fetchCompanies、toggleColumn、toggleFilter等）
   useEffect(() => {
     const fetchCompanies = async () => {
-      // 企業データ取得のロジック（以前と同じ）
       const { data: companiesData, error: companiesError } = await supabase
         .from("companies")
         .select("*");
@@ -150,7 +149,6 @@ export default function JobsPage() {
         return;
       }
 
-      // company_stats データを取得
       const { data: statsData, error: statsError } = await supabase
         .from("company_stats")
         .select("*");
@@ -160,7 +158,6 @@ export default function JobsPage() {
         return;
       }
 
-      // employment_statistics データを取得
       const { data: employmentData, error: employmentError } = await supabase
         .from("employment_statistics")
         .select("*");
@@ -170,7 +167,6 @@ export default function JobsPage() {
         return;
       }
 
-      // データを結合
       const mergedData = companiesData.map(company => {
         const stats = statsData.find(s => s.company_id === company.id) || {};
         const employment = employmentData.find(e => e.company_id === company.id) || {};
@@ -248,10 +244,54 @@ export default function JobsPage() {
     }) * (sortConfig.direction === "asc" ? 1 : -1);
   });
 
-  // レンダリングのためのコードは以前と同じ
+  const toggleFilter = (key) => {
+    setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const requestSort = (key) => {
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      {/* 既存のレンダリングロジック */}
+      <div className="mb-4">
+        <button onClick={() => toggleFilter('hideUnknownHolidays')}>
+          {filters.hideUnknownHolidays ? "Show Unknown Holidays" : "Hide Unknown Holidays"}
+        </button>
+        <button onClick={() => toggleFilter('hideUnknownOvertime')}>
+          {filters.hideUnknownOvertime ? "Show Unknown Overtime" : "Hide Unknown Overtime"}
+        </button>
+        <button onClick={() => toggleFilter('hideUnknownWeeklyHoliday')}>
+          {filters.hideUnknownWeeklyHoliday ? "Show Unknown Weekly Holiday" : "Hide Unknown Weekly Holiday"}
+        </button>
+        <button onClick={() => toggleFilter('hideUnknownSalary')}>
+          {filters.hideUnknownSalary ? "Show Unknown Salary" : "Hide Unknown Salary"}
+        </button>
+      </div>
+      <table className="min-w-full bg-white">
+        <thead>
+          <tr>
+            {selectedColumns.map((column) => (
+              <th key={column} onClick={() => requestSort(column)}>
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sortedCompanies.map((company) => (
+            <tr key={company.id}>
+              {selectedColumns.map((column) => (
+                <td key={column}>{company[column]}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
