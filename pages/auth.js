@@ -9,7 +9,7 @@ export default function AuthPage() {
   const router = useRouter();
 
   const handleLogin = async () => {
-    const email = `${studentId}@example.com`;  // Supabase Auth ではメール形式が必要
+    const email = `${studentId}@inc.kisarazu.ac,jp`;  // Supabase Auth ではメール形式が必要
 
     // 学籍番号の形式を確認
     const studentIdPattern = /^[a-zA-Z]\d{5}$/;
@@ -18,9 +18,13 @@ export default function AuthPage() {
       return;
     }
 
+    console.log("Email:", email);  // デバッグ用
+    console.log("Password:", password);  // デバッグ用
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
+      console.error("Login error:", error);  // デバッグ用
       setError("学籍番号またはパスワードが間違っています");
     } else {
       router.push("/jobs");  // ログイン成功時に /jobs へリダイレクト
