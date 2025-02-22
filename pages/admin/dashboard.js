@@ -11,15 +11,12 @@ const supabase = createClient(
 );
 
 export default function AdminDashboard() {
-  const [jobViewData, setJobViewData] = useState([]);
   const [columnSelectionData, setColumnSelectionData] = useState({});
   const [sortingData, setSortingData] = useState({});
   const [filterUsageData, setFilterUsageData] = useState({});
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
       try {
         // Supabase認証ユーザーを取得 
         // まずはauth.usersへの直接アクセスを試みる（管理者権限が必要）
@@ -92,7 +89,7 @@ export default function AdminDashboard() {
             };
           });
           
-          setJobViewData(enrichedViewLogs);
+          // setJobViewData(enrichedViewLogs); // 未使用のため削除
         }
         
         // 列選択データの取得
@@ -172,7 +169,7 @@ export default function AdminDashboard() {
       } catch (error) {
         console.error("データ取得中にエラーが発生しました:", error);
       } finally {
-        setLoading(false);
+        // setLoading(false); // 未使用のため削除
       }
     };
 
