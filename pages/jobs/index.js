@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-// import Link from "next/link";  // 未使用のため削除
 
+// Supabaseクライアントの作成
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -20,124 +20,119 @@ export default function JobsPage() {
     hideUnknownSalary: false,
   });
 
-  // スクロール深度と閲覧時間のトラッキング関数
-  const useViewLogging = () => {
-    useEffect(() => {
-      // 閲覧ログを記録する関数
-      const recordViewLog = async () => {
-        try {
-          // 現在のログインユーザーを取得
-          const { data: { user } } = await supabase.auth.getUser();
+  // スクロール深度と閲覧時間のトラッキング
+  useEffect(() => {
+    // 閲覧ログを記録する関数
+    const recordViewLog = async () => {
+      try {
+        // 現在のログインユーザーを取得
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const studentId = user.email.split('@')[0];
+          const startTime = new Date();
+
+          // スクロール深度トラッキングの実装
+          let maxScrollDepth = 0;
           
-          if (user) {
-            const studentId = user.email.split('@')[0];
-            const startTime = new Date();
-
-            // スクロール深度トラッキングの実装
-            let maxScrollDepth = 0;
+          const updateScrollDepth = () => {
+            const scrollPosition = window.scrollY;
+            const windowHeight = window.innerHeight;
+            const documentHeight = document.documentElement.scrollHeight;
             
-            const updateScrollDepth = () => {
-              const scrollPosition = window.scrollY;
-              const windowHeight = window.innerHeight;
-              const documentHeight = document.documentElement.scrollHeight;
-              
-              // スクロール深度をパーセンテージで計算
-              const currentScrollDepth = Math.round(
-                (scrollPosition + windowHeight) / documentHeight * 100
-              );
-              
-              maxScrollDepth = Math.max(maxScrollDepth, currentScrollDepth);
-            };
+            // スクロール深度をパーセンテージで計算
+            const currentScrollDepth = Math.round(
+              (scrollPosition + windowHeight) / documentHeight * 100
+            );
+            
+            maxScrollDepth = Math.max(maxScrollDepth, currentScrollDepth);
+          };
 
-            // スクロールイベントリスナーを追加
-            window.addEventListener('scroll', updateScrollDepth);
+          // スクロールイベントリスナーを追加
+          window.addEventListener('scroll', updateScrollDepth);
 
-            // 初期ログエントリを挿入
-            const { error: logError } = await supabase
+          // 初期ログエントリを挿入
+          const { error: logError } = await supabase
+            .from('view_logs')
+            .insert({
+              user_id: user.id,
+              student_id: studentId,
+              page: 'jobs',
+              view_time: 0,
+              article_id: null,
+              scroll_depth: 0,
+              timestamp: new Date().toISOString()
+            });
+
+          if (logError) {
+            console.error("閲覧ログ記録エラー:", logError);
+          }
+
+          // ページ離脱時またはコンポーネントアンマウント時の処理
+          const handlePageExit = async () => {
+            // 閲覧時間を計算
+            const endTime = new Date();
+            const viewTimeSeconds = Math.round((endTime - startTime) / 1000);
+
+            // 最新のログエントリを取得して更新
+            const { data: latestLogs, error: fetchError } = await supabase
               .from('view_logs')
-              .insert({
-                user_id: user.id,
-                student_id: studentId,
-                page: 'jobs',
-                view_time: 0,
-                article_id: null,
-                scroll_depth: 0,
-                timestamp: new Date().toISOString()
-              });
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('page', 'jobs')
+              .order('timestamp', { ascending: false })
+              .limit(1);
 
-            if (logError) {
-              console.error("閲覧ログ記録エラー:", logError);
+            if (fetchError) {
+              console.error("最新ログ取得エラー:", fetchError);
+              return;
             }
 
-            // ページ離脱時またはコンポーネントアンマウント時の処理
-            const handlePageExit = async () => {
-              // 閲覧時間を計算
-              const endTime = new Date();
-              const viewTimeSeconds = Math.round((endTime - startTime) / 1000);
-
-              // 最新のログエントリを取得して更新
-              const { data: latestLogs, error: fetchError } = await supabase
+            if (latestLogs && latestLogs.length > 0) {
+              // ログエントリを実際の閲覧時間とスクロール深度で更新
+              const { error: updateError } = await supabase
                 .from('view_logs')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('page', 'jobs')
-                .order('timestamp', { ascending: false })
-                .limit(1);
+                .update({ 
+                  view_time: viewTimeSeconds,
+                  scroll_depth: maxScrollDepth 
+                })
+                .eq('id', latestLogs[0].id);
 
-              if (fetchError) {
-                console.error("最新ログ取得エラー:", fetchError);
-                return;
+              if (updateError) {
+                console.error("閲覧ログ更新エラー:", updateError);
               }
+            }
 
-              if (latestLogs && latestLogs.length > 0) {
-                // ログエントリを実際の閲覧時間とスクロール深度で更新
-                const { error: updateError } = await supabase
-                  .from('view_logs')
-                  .update({ 
-                    view_time: viewTimeSeconds,
-                    scroll_depth: maxScrollDepth 
-                  })
-                  .eq('id', latestLogs[0].id);
+            // イベントリスナーを削除
+            window.removeEventListener('scroll', updateScrollDepth);
+          };
 
-                if (updateError) {
-                  console.error("閲覧ログ更新エラー:", updateError);
-                }
-              }
+          // ページ離脱時のイベントリスナーを追加
+          window.addEventListener('beforeunload', handlePageExit);
 
-              // イベントリスナーを削除
-              window.removeEventListener('scroll', updateScrollDepth);
-            };
-
-            // ページ離脱時のイベントリスナーを追加
-            window.addEventListener('beforeunload', handlePageExit);
-
-            // コンポーネントのクリーンアップ関数を返す
-            return () => {
-              window.removeEventListener('beforeunload', handlePageExit);
-              handlePageExit(); // コンポーネントのアンマウント時にも更新
-            };
-          }
-        } catch (err) {
-          console.error("閲覧ログ記録中にエラー:", err);
+          // コンポーネントのクリーンアップ関数を返す
+          return () => {
+            window.removeEventListener('beforeunload', handlePageExit);
+            handlePageExit(); // コンポーネントのアンマウント時にも更新
+          };
         }
-      };
+      } catch (err) {
+        console.error("閲覧ログ記録中にエラー:", err);
+      }
+    };
 
-      // 閲覧ログ記録を実行
-      const cleanup = recordViewLog();
+    // 閲覧ログ記録を実行
+    const cleanup = recordViewLog();
 
-      // クリーンアップ関数を返す
-      return () => {
-        if (typeof cleanup === 'function') {
-          cleanup();
-        }
-      };
-    }, []); // 空の依存配列で初回のみ実行
-  };
+    // クリーンアップ関数を返す
+    return () => {
+      if (typeof cleanup === 'function') {
+        cleanup();
+      }
+    };
+  }, []); // 空の依存配列で初回のみ実行
 
-  // 既存のフックと同様に追加
-  useViewLogging();
-
-  // 以下は既存のコードと同じ（fetchCompanies、toggleColumn、toggleFilter等）
+  // 会社データの取得
   useEffect(() => {
     const fetchCompanies = async () => {
       const { data: companiesData, error: companiesError } = await supabase
@@ -224,7 +219,7 @@ export default function JobsPage() {
     }
   }, [selectedColumns]);
 
-  // 残りのコードは以前と同じ（フィルタリング、ソート、レンダリングロジック）
+  // 企業データのフィルタリング
   const filteredCompanies = companies.filter((company) => {
     if (filters.hideUnknownHolidays && company.年間休日 === "不明") return false;
     if (filters.hideUnknownOvertime && company.残業時間 === "不明") return false;
@@ -233,6 +228,7 @@ export default function JobsPage() {
     return true;
   });
 
+  // 企業データのソート
   const sortedCompanies = [...filteredCompanies].sort((a, b) => {
     if (!sortConfig.key) return 0;
     const aValue = a[sortConfig.key] === "不明" ? "" : a[sortConfig.key];
@@ -244,10 +240,12 @@ export default function JobsPage() {
     }) * (sortConfig.direction === "asc" ? 1 : -1);
   });
 
+  // フィルタ切り替えハンドラ
   const toggleFilter = (key) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // ソート設定ハンドラ
   const requestSort = (key) => {
     let direction = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") {
@@ -256,6 +254,7 @@ export default function JobsPage() {
     setSortConfig({ key, direction });
   };
 
+  // 列表示切り替えハンドラ
   const toggleColumn = (column) => {
     setSelectedColumns((prevColumns) =>
       prevColumns.includes(column)
@@ -264,61 +263,196 @@ export default function JobsPage() {
     );
   };
 
+  // UIのレンダリング
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <div className="mb-4 space-x-2">
-        <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownHolidays')}>
-          {filters.hideUnknownHolidays ? "❌ 休日不明" : "✅ 休日不明"}
-        </button>
-        <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownOvertime')}>
-          {filters.hideUnknownOvertime ? "❌ 残業不明" : "✅ 残業不明"}
-        </button>
-        <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownWeeklyHoliday')}>
-          {filters.hideUnknownWeeklyHoliday ? "❌ 週休不明" : "✅ 週休不明"}
-        </button>
-        <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => toggleFilter('hideUnknownSalary')}>
-          {filters.hideUnknownSalary ? "❌ 給与不明" : "✅ 給与不明"}
-        </button>
+      {/* フィルターセクション */}
+      <div className="mb-8 bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">
+          不明データをフィルタリングするボタン
+        </h3>
+        <p className="text-sm text-gray-600 mb-4">以下のトグルスイッチを使って、不明なデータを持つ企業を表示/非表示できます。</p>
+        
+        <div className="flex flex-wrap gap-4">
+          {/* フィルターボタン：トグルスイッチスタイル */}
+          <div className="flex items-center">
+            <button 
+              className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${filters.hideUnknownHolidays ? 'bg-blue-600' : 'bg-gray-300'}`}
+              onClick={() => toggleFilter('hideUnknownHolidays')}
+              aria-pressed={filters.hideUnknownHolidays}
+            >
+              <span 
+                className={`absolute left-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300
+                  ${filters.hideUnknownHolidays ? 'translate-x-6' : 'translate-x-0'}`} 
+              />
+            </button>
+            <span className="ml-3 text-gray-700">
+              休日不明
+              <span className="text-xs ml-2 text-gray-500">
+                {filters.hideUnknownHolidays ? '(非表示中)' : '(表示中)'}
+              </span>
+            </span>
+          </div>
+          
+          <div className="flex items-center">
+            <button 
+              className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${filters.hideUnknownOvertime ? 'bg-blue-600' : 'bg-gray-300'}`}
+              onClick={() => toggleFilter('hideUnknownOvertime')}
+              aria-pressed={filters.hideUnknownOvertime}
+            >
+              <span 
+                className={`absolute left-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300
+                  ${filters.hideUnknownOvertime ? 'translate-x-6' : 'translate-x-0'}`} 
+              />
+            </button>
+            <span className="ml-3 text-gray-700">
+              残業不明
+              <span className="text-xs ml-2 text-gray-500">
+                {filters.hideUnknownOvertime ? '(非表示中)' : '(表示中)'}
+              </span>
+            </span>
+          </div>
+          
+          <div className="flex items-center">
+            <button 
+              className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${filters.hideUnknownWeeklyHoliday ? 'bg-blue-600' : 'bg-gray-300'}`}
+              onClick={() => toggleFilter('hideUnknownWeeklyHoliday')}
+              aria-pressed={filters.hideUnknownWeeklyHoliday}
+            >
+              <span 
+                className={`absolute left-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300
+                  ${filters.hideUnknownWeeklyHoliday ? 'translate-x-6' : 'translate-x-0'}`} 
+              />
+            </button>
+            <span className="ml-3 text-gray-700">
+              週休不明
+              <span className="text-xs ml-2 text-gray-500">
+                {filters.hideUnknownWeeklyHoliday ? '(非表示中)' : '(表示中)'}
+              </span>
+            </span>
+          </div>
+          
+          <div className="flex items-center">
+            <button 
+              className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${filters.hideUnknownSalary ? 'bg-blue-600' : 'bg-gray-300'}`}
+              onClick={() => toggleFilter('hideUnknownSalary')}
+              aria-pressed={filters.hideUnknownSalary}
+            >
+              <span 
+                className={`absolute left-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300
+                  ${filters.hideUnknownSalary ? 'translate-x-6' : 'translate-x-0'}`} 
+              />
+            </button>
+            <span className="ml-3 text-gray-700">
+              給与不明
+              <span className="text-xs ml-2 text-gray-500">
+                {filters.hideUnknownSalary ? '(非表示中)' : '(表示中)'}
+              </span>
+            </span>
+          </div>
+        </div>
       </div>
-      <div className="mb-4 space-x-2">
-        {["従業員数", "学士卒採用数", "女性比率", "採用人数", "給与", "ボーナス", "労働時間", "年間休日", "残業時間", "週休"].map((column) => (
-          <button
-            key={column}
-            className={`px-4 py-2 rounded ${selectedColumns.includes(column) ? 'bg-green-500 text-white' : 'bg-gray-300'}`}
-            onClick={() => toggleColumn(column)}
-          >
-            {selectedColumns.includes(column) ? `✅ ${column}` : `❌ ${column}`}
-          </button>
-        ))}
-      </div>
-      <table className="min-w-full bg-white border">
-        <thead>
-          <tr>
-            <th className="border-b-2 border-gray-300 px-4 py-2 text-left">企業名</th>
-            {selectedColumns.map((column) => (
-              <th
-                key={column}
-                className="border-b-2 border-gray-300 px-4 py-2 text-left cursor-pointer"
-                onClick={() => requestSort(column)}
+      
+      {/* 列選択セクション */}
+      <div className="mb-8 bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">
+          表示する列を選択するボタン
+        </h3>
+        <p className="text-sm text-gray-600 mb-4">以下のボタンを使って、テーブルに表示する列を選択できます。</p>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          {["従業員数", "学士卒採用数", "女性比率", "採用人数", "給与", "ボーナス", "労働時間", "年間休日", "残業時間", "週休"].map((column) => (
+            <div 
+              key={column} 
+              className={`relative flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 
+                ${selectedColumns.includes(column) 
+                  ? 'bg-green-50 border-green-500 shadow-sm' 
+                  : 'bg-gray-50 border-gray-300 hover:bg-gray-100'}`}
+              onClick={() => toggleColumn(column)}
+            >
+              <div 
+                className={`flex justify-center items-center w-6 h-6 mr-2 rounded border 
+                  ${selectedColumns.includes(column) 
+                    ? 'bg-green-500 border-green-600 text-white' 
+                    : 'bg-white border-gray-400'}`}
               >
-                {column} {sortConfig.key === column ? (sortConfig.direction === "asc" ? "▲" : "▼") : ""}
+                {selectedColumns.includes(column) && (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              <span className={`text-sm ${selectedColumns.includes(column) ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                {column}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* データテーブル */}
+      <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                企業名
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedCompanies.map((company) => (
-            <tr key={company.id} className="hover:bg-gray-100">
-              <td className="border-b border-gray-300 px-4 py-2">{company.企業名}</td>
               {selectedColumns.map((column) => (
-                <td key={column} className="border-b border-gray-300 px-4 py-2">
-                  {company[column]}
-                </td>
+                <th
+                  key={column}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => requestSort(column)}
+                >
+                  <div className="flex items-center">
+                    <span>{column}</span>
+                    <span className="ml-1">
+                      {sortConfig.key === column && (
+                        sortConfig.direction === "asc" 
+                          ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                      )}
+                    </span>
+                  </div>
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {sortedCompanies.length > 0 ? (
+              sortedCompanies.map((company) => (
+                <tr key={company.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
+                    {company.企業名}
+                  </td>
+                  {selectedColumns.map((column) => (
+                    <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {company[column]}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td 
+                  colSpan={selectedColumns.length + 1} 
+                  className="px-6 py-4 text-center text-sm text-gray-500"
+                >
+                  該当する企業データがありません
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

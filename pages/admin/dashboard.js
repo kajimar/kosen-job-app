@@ -14,6 +14,110 @@ export default function AdminDashboard() {
   const [columnSelectionData, setColumnSelectionData] = useState({});
   const [sortingData, setSortingData] = useState({});
   const [filterUsageData, setFilterUsageData] = useState({});
+  const [studentAnalysis, setStudentAnalysis] = useState({});
+
+  // フィルターの種類を日本語に変換する関数
+  const translateFilterType = (filterType) => {
+    const translations = {
+      'salary': '給与',
+      'region': '地域',
+      'working_hours': '労働時間',
+      'holidays': '休日',
+      'overtime': '残業',
+      'weekly_off': '週休',
+      'company_size': '企業規模',
+      'industry': '業種',
+      'bonus': 'ボーナス',
+      'unknown': '不明'
+    };
+    
+    return translations[filterType] || filterType;
+  };
+
+  // グラフデータの形式を作成する関数
+  const createHistogramData = (data) => {
+    return {
+      labels: Object.keys(data),
+      datasets: [
+        {
+          label: 'Count',
+          data: Object.values(data),
+          backgroundColor: 'rgba(75, 192, 192, 0.6)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  // 全体分析データを計算する関数
+  const calculateTotalAnalysis = (studentAnalysis) => {
+    const totals = {
+      totalViewTime: 0,
+      totalViewCount: 0,
+      uniqueStudents: Object.keys(studentAnalysis).length
+    };
+    
+    Object.values(studentAnalysis).forEach(data => {
+      totals.totalViewTime += data.totalViewTime || 0;
+      totals.totalViewCount += data.viewCount || 0;
+    });
+    
+    return totals;
+  };
+  
+  // データからインサイトを取得する関数
+  const getDataInsights = (studentAnalysis, columnSelectionData, sortingData, filterUsageData) => {
+    // データがない場合は空のオブジェクトを返す
+    if (!studentAnalysis || Object.keys(studentAnalysis).length === 0) {
+      return {};
+    }
+    
+    // 最も閲覧回数の多い学籍番号を取得
+    let maxViewCountStudent = '';
+    let maxViewCount = 0;
+    
+    // 最も閲覧時間の長い学籍番号を取得
+    let maxViewTimeStudent = '';
+    let maxViewTime = 0;
+    
+    Object.entries(studentAnalysis).forEach(([studentId, data]) => {
+      if (data.viewCount > maxViewCount) {
+        maxViewCount = data.viewCount;
+        maxViewCountStudent = studentId;
+      }
+      
+      if (data.totalViewTime > maxViewTime) {
+        maxViewTime = data.totalViewTime;
+        maxViewTimeStudent = studentId;
+      }
+    });
+    
+    // 選択された項目のトップ3を取得
+    const topColumns = columnSelectionData && columnSelectionData.columnCounts 
+      ? Object.entries(columnSelectionData.columnCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(entry => entry[0])
+      : [];
+      
+    // 使用されたフィルターのトップ3を取得
+    const topFilters = filterUsageData && filterUsageData.filterTypeCounts
+      ? Object.entries(filterUsageData.filterTypeCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(entry => entry[0])
+      : [];
+    
+    return {
+      maxViewCountStudent,
+      maxViewCount,
+      maxViewTimeStudent, 
+      maxViewTime,
+      topColumns,
+      topFilters
+    };
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,6 +182,17 @@ export default function AdminDashboard() {
           console.error("🚨 閲覧ログ取得エラー:", viewError);
         } else {
           console.log("📡 就職先DB閲覧ログ:", viewLogs);
+
+          const enrichedViewLogs = (viewLogs || []).map(log => {
+            const user = processedUsersData.find(u => u.id === log.user_id);
+            return {
+              ...log,
+              studentId: log.student_id || user?.studentId || 'unknown'
+            };
+          });
+
+          const studentAnalysisData = createStudentAnalysis(enrichedViewLogs);
+          setStudentAnalysis(studentAnalysisData);
         }
         
         // 列選択データの取得
@@ -154,10 +269,9 @@ export default function AdminDashboard() {
             setFilterUsageData(filterStats);
           }
         }
+
       } catch (error) {
         console.error("データ取得中にエラーが発生しました:", error);
-      } finally {
-        // setLoading(false); // 未使用のため削除
       }
     };
 
@@ -260,6 +374,47 @@ export default function AdminDashboard() {
         studentColumnPreferences
       };
     };
+    
+    // フィルターデータを処理する関数
+    const processFilterUsageData = (data) => {
+      // フィルタータイプの出現回数をカウント
+      const filterTypeCounts = {};
+      
+      data.forEach(filter => {
+        const filterType = filter.filter_type || 'unknown';
+        const translatedFilterType = translateFilterType(filterType);
+        
+        if (!filterTypeCounts[translatedFilterType]) {
+          filterTypeCounts[translatedFilterType] = 0;
+        }
+        filterTypeCounts[translatedFilterType]++;
+      });
+      
+      // 学籍番号ごとのフィルター使用傾向
+      const studentFilterPreferences = {};
+      
+      data.forEach(filter => {
+        const studentId = filter.studentId || 'unknown';
+        
+        if (!studentFilterPreferences[studentId]) {
+          studentFilterPreferences[studentId] = {};
+        }
+        
+        const filterType = filter.filter_type || 'unknown';
+        const translatedFilterType = translateFilterType(filterType);
+        
+        if (!studentFilterPreferences[studentId][translatedFilterType]) {
+          studentFilterPreferences[studentId][translatedFilterType] = 0;
+        }
+        
+        studentFilterPreferences[studentId][translatedFilterType]++;
+      });
+      
+      return {
+        filterTypeCounts,
+        studentFilterPreferences
+      };
+    };
   
     fetchData();
 
@@ -304,33 +459,140 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const createHistogramData = (data) => ({
-    labels: Object.keys(data),
-    datasets: [
-      {
-        label: 'Count',
-        data: Object.values(data),
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1,
-      },
-    ],
-  });
+  const createStudentAnalysis = (viewLogs) => {
+    const analysis = {};
+
+    viewLogs.forEach(log => {
+      const studentId = log.studentId || 'unknown';
+      if (!analysis[studentId]) {
+        analysis[studentId] = {
+          totalViewTime: 0,
+          viewCount: 0,
+          uniqueOpeners: new Set(),
+        };
+      }
+      analysis[studentId].totalViewTime += log.view_time || 0;
+      analysis[studentId].viewCount += 1;
+      analysis[studentId].uniqueOpeners.add(log.user_id);
+    });
+
+    // Convert Set to size for unique openers count - これは閲覧したユーザー（学籍番号）の数
+    Object.keys(analysis).forEach(studentId => {
+      analysis[studentId].uniqueOpeners = analysis[studentId].uniqueOpeners.size;
+    });
+
+    return analysis;
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <h1 className="text-2xl font-bold mb-4">管理者ダッシュボード</h1>
-      <div className="mt-8">
-        <h2 className="text-xl font-bold mb-4">🔍 選択された情報項目</h2>
-        <Bar data={createHistogramData(columnSelectionData.columnCounts || {})} />
+      
+      {/* 全体の分析サマリー */}
+      {Object.keys(studentAnalysis).length > 0 && (
+        <div className="bg-white p-6 rounded shadow mb-6">
+          <h2 className="text-xl font-bold mb-4">🔍 全体分析サマリー</h2>
+          
+          {/* 全体の統計情報 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {(() => {
+              const totals = calculateTotalAnalysis(studentAnalysis);
+              return (
+                <>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <p className="text-lg font-semibold text-blue-800">{totals.uniqueStudents}</p>
+                    <p className="text-sm text-blue-600">学籍番号数</p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                    <p className="text-lg font-semibold text-green-800">{totals.totalViewCount}</p>
+                    <p className="text-sm text-green-600">閲覧回数合計</p>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                    <p className="text-lg font-semibold text-purple-800">{totals.totalViewTime}</p>
+                    <p className="text-sm text-purple-600">閲覧時間合計</p>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+          
+          {/* インサイト情報 */}
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+            <h3 className="text-md font-bold mb-2">📊 データインサイト</h3>
+            {(() => {
+              const insights = getDataInsights(studentAnalysis, columnSelectionData, sortingData, filterUsageData);
+              return (
+                <ul className="text-sm space-y-2">
+                  {insights.maxViewCountStudent && (
+                    <li><span className="font-medium">最も閲覧回数が多い学籍番号:</span> {insights.maxViewCountStudent} ({insights.maxViewCount}回)</li>
+                  )}
+                  {insights.maxViewTimeStudent && (
+                    <li><span className="font-medium">最も閲覧時間が長い学籍番号:</span> {insights.maxViewTimeStudent} ({insights.maxViewTime}秒)</li>
+                  )}
+                  {insights.topColumns && insights.topColumns.length > 0 && (
+                    <li><span className="font-medium">最も選択された項目:</span> {insights.topColumns.join(', ')}</li>
+                  )}
+                  {insights.topFilters && insights.topFilters.length > 0 && (
+                    <li><span className="font-medium">最も使用されたフィルター:</span> {insights.topFilters.join(', ')}</li>
+                  )}
+                </ul>
+              );
+            })()}
+          </div>
+          
+          {/* 分析手法の提案 */}
+          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+            <h3 className="text-md font-bold mb-2">💡 追加の分析手法</h3>
+            <ul className="text-sm space-y-1">
+              <li><span className="font-medium">時間帯別分析:</span> 学生がどの時間帯にデータを閲覧しているか</li>
+              <li><span className="font-medium">アクセス経路分析:</span> どのページからアクセスしているかを追跡</li>
+              <li><span className="font-medium">セッション持続時間分析:</span> 1回のセッションでの平均閲覧時間</li>
+              <li><span className="font-medium">コホート分析:</span> 学年ごとの利用パターンの違い</li>
+              <li><span className="font-medium">機能利用率:</span> 各機能（ソート、フィルター）の利用率の時系列変化</li>
+            </ul>
+          </div>
+        </div>
+      )}
+      
+      {/* 学籍番号ごとの分析 */}
+      <div className="bg-white p-6 rounded shadow mb-6">
+        <h2 className="text-xl font-bold mb-4">👥 学籍番号ごとの分析</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">学籍番号</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">閲覧時間</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">閲覧回数</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {Object.entries(studentAnalysis).map(([studentId, data]) => (
+                <tr key={studentId} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">{studentId}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{data.totalViewTime}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{data.viewCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div className="mt-8">
-        <h2 className="text-xl font-bold mb-4">🔄 使用されたソート条件</h2>
-        <Bar data={createHistogramData(sortingData.sortColumnCounts || {})} />
-      </div>
-      <div className="mt-8">
-        <h2 className="text-xl font-bold mb-4">🔎 使用されたフィルター</h2>
-        <Bar data={createHistogramData(filterUsageData.filterTypeCounts || {})} />
+      
+      {/* グラフ表示部分 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-4 rounded shadow">
+          <h2 className="text-xl font-bold mb-4">🔍 選択された情報項目</h2>
+          <Bar data={createHistogramData(columnSelectionData.columnCounts || {})} />
+        </div>
+        <div className="bg-white p-4 rounded shadow">
+          <h2 className="text-xl font-bold mb-4">🔄 使用されたソート条件</h2>
+          <Bar data={createHistogramData(sortingData.sortColumnCounts || {})} />
+        </div>
+        <div className="bg-white p-4 rounded shadow">
+          <h2 className="text-xl font-bold mb-4">🔎 使用されたフィルター</h2>
+          <Bar data={createHistogramData(filterUsageData.filterTypeCounts || {})} />
+        </div>
       </div>
     </div>
   );
