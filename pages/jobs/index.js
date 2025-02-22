@@ -31,6 +31,102 @@ export default function JobsPage() {
   });
 
   useEffect(() => {
+    // 閲覧ログを記録する関数
+    const recordViewLog = async () => {
+      try {
+        // 現在のログインユーザーを取得
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          console.log("ログインユーザー:", user.id);
+          
+          // view_logsテーブルに記録
+          const { data, error } = await supabase.from('view_logs').insert({
+            user_id: user.id,
+            page: 'jobs',
+            view_time: 0, // 初期値は0、後で更新
+            article_id: null, // インタビュー記事の場合に使用
+            timestamp: new Date().toISOString()
+          });
+          
+          if (error) {
+            console.error("閲覧ログ記録エラー:", error);
+          } else {
+            console.log("閲覧ログ記録成功:", data);
+          }
+          
+          // 閲覧開始時間を記録
+          const startTime = new Date();
+          
+          // ページ離脱時またはコンポーネントアンマウント時に閲覧時間を更新
+          const updateViewTime = async () => {
+            const endTime = new Date();
+            const viewTimeSeconds = Math.round((endTime - startTime) / 1000);
+            
+            // 最新の自分の閲覧ログを取得
+            const { data: latestLogs, error: fetchError } = await supabase
+              .from('view_logs')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('page', 'jobs')
+              .order('timestamp', { ascending: false })
+              .limit(1);
+            
+            if (fetchError) {
+              console.error("最新ログ取得エラー:", fetchError);
+              return;
+            }
+            
+            if (latestLogs && latestLogs.length > 0) {
+              // 閲覧時間を更新
+              const { error: updateError } = await supabase
+                .from('view_logs')
+                .update({ view_time: viewTimeSeconds })
+                .eq('id', latestLogs[0].id);
+              
+              if (updateError) {
+                console.error("閲覧時間更新エラー:", updateError);
+              } else {
+                console.log(`閲覧時間を更新: ${viewTimeSeconds}秒`);
+              }
+            }
+          };
+          
+          // ウィンドウを閉じる際のイベントリスナー
+          window.addEventListener('beforeunload', updateViewTime);
+          
+          // コンポーネントがアンマウントされる際のクリーンアップ
+          return () => {
+            window.removeEventListener('beforeunload', updateViewTime);
+            updateViewTime(); // コンポーネントアンマウント時にも閲覧時間を更新
+          };
+        }
+      } catch (err) {
+        console.error("閲覧ログ記録中にエラー:", err);
+      }
+    };
+
+    // 列選択の変更を記録する関数
+    const recordColumnSelection = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { error } = await supabase.from('column_selections').insert({
+            user_id: user.id,
+            selected_columns: selectedColumns,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (error) {
+            console.error("列選択記録エラー:", error);
+          }
+        }
+      } catch (err) {
+        console.error("列選択記録中にエラー:", err);
+      }
+    };
+
     const fetchCompanies = async () => {
       // まず companies テーブルからデータを取得
       const { data: companiesData, error: companiesError } = await supabase
@@ -87,7 +183,41 @@ export default function JobsPage() {
     };
 
     fetchCompanies();
-  }, []);
+    recordViewLog(); // 閲覧ログを記録
+    
+    // このコンポーネントが初めてマウントされた時にのみ列選択を記録
+    // この処理は一度だけ実行される
+    recordColumnSelection();
+    
+  }, []); // 空の依存配列で初回のみ実行
+
+  // 列選択が変更された時に記録
+  useEffect(() => {
+    const recordColumnChange = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { error } = await supabase.from('column_selections').insert({
+            user_id: user.id,
+            selected_columns: selectedColumns,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (error) {
+            console.error("列選択変更記録エラー:", error);
+          }
+        }
+      } catch (err) {
+        console.error("列選択変更記録中にエラー:", err);
+      }
+    };
+    
+    // 初回レンダリング時は実行しない
+    if (selectedColumns.length > 0) {
+      recordColumnChange();
+    }
+  }, [selectedColumns]); // selectedColumnsが変更されたときに実行
 
   const toggleColumn = (column) => {
     setSelectedColumns((prevColumns) =>
@@ -98,6 +228,29 @@ export default function JobsPage() {
   };
 
   const toggleFilter = (key) => {
+    // フィルター使用を記録
+    const recordFilterUsage = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { error } = await supabase.from('filter_operations').insert({
+            user_id: user.id,
+            filter_type: key,
+            filter_value: !filters[key], // トグル後の値
+            timestamp: new Date().toISOString()
+          });
+          
+          if (error) {
+            console.error("フィルター使用記録エラー:", error);
+          }
+        }
+      } catch (err) {
+        console.error("フィルター使用記録中にエラー:", err);
+      }
+    };
+    
+    recordFilterUsage();
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -121,6 +274,35 @@ export default function JobsPage() {
   });
 
   const requestSort = (key) => {
+    // ソート操作を記録
+    const recordSortOperation = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          let direction = "asc";
+          if (sortConfig.key === key && sortConfig.direction === "asc") {
+            direction = "desc";
+          }
+          
+          const { error } = await supabase.from('sort_operations').insert({
+            user_id: user.id,
+            sort_column: key,
+            sort_direction: direction,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (error) {
+            console.error("ソート操作記録エラー:", error);
+          }
+        }
+      } catch (err) {
+        console.error("ソート操作記録中にエラー:", err);
+      }
+    };
+    
+    recordSortOperation();
+    
     let direction = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") {
       direction = "desc";
@@ -241,7 +423,6 @@ export default function JobsPage() {
           </div>
         </div>
 
-         {/* 企業一覧テーブル */}
          {/* 企業一覧テーブル */}
         <div className="overflow-x-auto">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
