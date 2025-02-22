@@ -395,63 +395,68 @@ export default function JobsPage() {
       </div>
       
       {/* データテーブル */}
-      <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
-                企業名
-              </th>
-              {selectedColumns.map((column) => (
-                <th
-                  key={column}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => requestSort(column)}
-                >
-                  <div className="flex items-center">
-                    <span>{column}</span>
-                    <span className="ml-1">
-                      {sortConfig.key === column && (
-                        sortConfig.direction === "asc" 
-                          ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                      )}
-                    </span>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {sortedCompanies.length > 0 ? (
-              sortedCompanies.map((company) => (
-                <tr key={company.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
-                    {company.企業名}
-                  </td>
-                  {selectedColumns.map((column) => (
-                    <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {company[column]}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            ) : (
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="overflow-x-auto w-full">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <td 
-                  colSpan={selectedColumns.length + 1} 
-                  className="px-6 py-4 text-center text-sm text-gray-500"
-                >
-                  該当する企業データがありません
-                </td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[8rem]">
+                  企業名
+                </th>
+                {selectedColumns.map((column) => (
+                  <th
+                    key={column}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 min-w-[8rem]"
+                    onClick={() => requestSort(column)}
+                  >
+                    <div className="flex items-center">
+                      <span>{column}</span>
+                      <span className="ml-1">
+                        {sortConfig.key === column && (
+                          sortConfig.direction === "asc" 
+                            ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              </svg>
+                            : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                        )}
+                      </span>
+                    </div>
+                  </th>
+                ))}
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {sortedCompanies.length > 0 ? (
+                sortedCompanies.map((company) => (
+                  <tr key={company.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 min-w-[8rem]">
+                      {company.企業名}
+                    </td>
+                    {selectedColumns.map((column) => (
+                      <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 min-w-[8rem]">
+                        {company[column]}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td 
+                    colSpan={selectedColumns.length + 1} 
+                    className="px-6 py-4 text-center text-sm text-gray-500"
+                  >
+                    該当する企業データがありません
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="py-2 px-4 text-xs text-gray-500 text-center border-t">
+          表を横にスクロールすると、すべての列を見ることができます
+        </div>
       </div>
     </div>
   );
