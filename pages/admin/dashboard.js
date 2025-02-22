@@ -16,7 +16,6 @@ export default function AdminDashboard() {
   const [columnSelectionData, setColumnSelectionData] = useState({});
   const [sortingData, setSortingData] = useState({});
   const [filterUsageData, setFilterUsageData] = useState({});
-  const [studentData, setStudentData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
