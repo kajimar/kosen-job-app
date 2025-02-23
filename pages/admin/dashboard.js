@@ -17,7 +17,6 @@ function AuthWrapper({ children }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // セッションの監視
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -39,27 +38,25 @@ function AuthWrapper({ children }) {
     const password = e.target.password.value;
 
     try {
-      // まず通常のログイン
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      // 管理者チェック
+      const { data: adminCheck, error: checkError } = await supabase
+        .rpc('check_admin_password', {
+          admin_email: email,
+          admin_password: password
+        });
+
+      if (checkError || !adminCheck) {
+        setError('メールアドレスまたはパスワードが正しくありません');
+        return;
+      }
+
+      // 認証
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (authError) throw authError;
-
-      // 管理者テーブルをチェック
-      const { data: adminData, error: adminError } = await supabase
-        .from('admin_users')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (adminError || !adminData) {
-        // 管理者でない場合は即座にログアウト
-        await supabase.auth.signOut();
-        setError('このアカウントには管理者権限がありません');
-        return;
-      }
 
     } catch (error) {
       setError(error.message);
@@ -79,7 +76,6 @@ function AuthWrapper({ children }) {
     );
   }
 
-  // 未認証の場合はログインフォームを表示
   if (!session) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -92,9 +88,6 @@ function AuthWrapper({ children }) {
           <form className="mt-8 space-y-6" onSubmit={handleLogin}>
             <div className="rounded-md shadow-sm -space-y-px">
               <div>
-                <label htmlFor="email" className="sr-only">
-                  メールアドレス
-                </label>
                 <input
                   id="email"
                   name="email"
@@ -105,9 +98,6 @@ function AuthWrapper({ children }) {
                 />
               </div>
               <div>
-                <label htmlFor="password" className="sr-only">
-                  パスワード
-                </label>
                 <input
                   id="password"
                   name="password"
