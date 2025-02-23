@@ -38,7 +38,15 @@ function AuthWrapper({ children }) {
     const password = e.target.password.value;
 
     try {
-      // 管理者チェック
+      // まず通常のログインを試みる
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+
+      // 次に管理者チェック
       const { data: adminCheck, error: checkError } = await supabase
         .rpc('check_admin_password', {
           admin_email: email,
@@ -46,17 +54,11 @@ function AuthWrapper({ children }) {
         });
 
       if (checkError || !adminCheck) {
+        // 管理者でない場合はログアウト
+        await supabase.auth.signOut();
         setError('メールアドレスまたはパスワードが正しくありません');
         return;
       }
-
-      // 認証
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (authError) throw authError;
 
     } catch (error) {
       setError(error.message);
