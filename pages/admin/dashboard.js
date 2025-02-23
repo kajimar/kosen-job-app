@@ -39,12 +39,28 @@ function AuthWrapper({ children }) {
     const password = e.target.password.value;
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // まず通常のログイン
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
+
+      // 管理者テーブルをチェック
+      const { data: adminData, error: adminError } = await supabase
+        .from('admin_users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (adminError || !adminData) {
+        // 管理者でない場合は即座にログアウト
+        await supabase.auth.signOut();
+        setError('このアカウントには管理者権限がありません');
+        return;
+      }
+
     } catch (error) {
       setError(error.message);
     }
