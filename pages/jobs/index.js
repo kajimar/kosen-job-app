@@ -18,7 +18,74 @@ export default function JobsPage() {
     hideUnknownOvertime: false,
     hideUnknownWeeklyHoliday: false,
     hideUnknownSalary: false,
+    showOnlyBookmarks: false,
   });
+
+  // ブックマーク機能の状態とロジック
+  const [bookmarks, setBookmarks] = useState(new Set());
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+
+  // ブックマークの初期読み込み
+  useEffect(() => {
+    const fetchBookmarks = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: bookmarksData, error } = await supabase
+          .from('bookmarks')
+          .select('company_id')
+          .eq('user_id', user.id);
+
+        if (!error && bookmarksData) {
+          setBookmarks(new Set(bookmarksData.map(b => b.company_id)));
+        }
+      }
+    };
+
+    fetchBookmarks();
+  }, []);
+
+  // ブックマークの切り替え処理
+  const toggleBookmark = async (companyId) => {
+    setBookmarkLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const isBookmarked = bookmarks.has(companyId);
+      if (isBookmarked) {
+        // ブックマーク削除
+        const { error } = await supabase
+          .from('bookmarks')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('company_id', companyId);
+
+        if (!error) {
+          const newBookmarks = new Set(bookmarks);
+          newBookmarks.delete(companyId);
+          setBookmarks(newBookmarks);
+        }
+      } else {
+        // ブックマーク追加
+        const { error } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: user.id,
+            company_id: companyId
+          });
+
+        if (!error) {
+          const newBookmarks = new Set(bookmarks);
+          newBookmarks.add(companyId);
+          setBookmarks(newBookmarks);
+        }
+      }
+    } catch (error) {
+      console.error('ブックマーク処理エラー:', error);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
 
   // スクロール深度と閲覧時間のトラッキング
   useEffect(() => {
@@ -219,8 +286,12 @@ export default function JobsPage() {
     }
   }, [selectedColumns]);
 
-  // 企業データのフィルタリング
+  // フィルタリングロジック
   const filteredCompanies = companies.filter((company) => {
+    // ブックマークフィルターを追加
+    if (filters.showOnlyBookmarks && !bookmarks.has(company.id)) return false;
+    
+    // 既存のフィルター
     if (filters.hideUnknownHolidays && company.年間休日 === "不明") return false;
     if (filters.hideUnknownOvertime && company.残業時間 === "不明") return false;
     if (filters.hideUnknownWeeklyHoliday && company.週休 === "不明") return false;
@@ -231,9 +302,28 @@ export default function JobsPage() {
   // 企業データのソート
   const sortedCompanies = [...filteredCompanies].sort((a, b) => {
     if (!sortConfig.key) return 0;
-    const aValue = a[sortConfig.key] === "不明" ? "" : a[sortConfig.key];
-    const bValue = b[sortConfig.key] === "不明" ? "" : b[sortConfig.key];
 
+    // 数値を含む可能性のあるカラムを定義
+    const numericColumns = ["給与", "年間休日", "残業時間", "従業員数"];
+    
+    let aValue = a[sortConfig.key];
+    let bValue = b[sortConfig.key];
+
+    // "不明"の場合の処理
+    if (aValue === "不明" || aValue === "データなし") aValue = "";
+    if (bValue === "不明" || bValue === "データなし") bValue = "";
+
+    // 数値を含むカラムの場合、数値部分のみを抽出してソート
+    if (numericColumns.includes(sortConfig.key)) {
+      const aNum = Number(String(aValue).replace(/[^0-9.-]/g, ''));
+      const bNum = Number(String(bValue).replace(/[^0-9.-]/g, ''));
+      
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return (aNum - bNum) * (sortConfig.direction === "asc" ? 1 : -1);
+      }
+    }
+
+    // 文字列の場合は通常の比較
     return String(aValue).localeCompare(String(bValue), "ja", {
       numeric: true,
       sensitivity: "base",
@@ -269,10 +359,8 @@ export default function JobsPage() {
       {/* フィルターセクション */}
       <div className="mb-8 bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">
-          不明データをフィルタリングするボタン
+          フィルター
         </h3>
-        <p className="text-sm text-gray-600 mb-4">以下のトグルスイッチを使って、不明なデータを持つ企業を表示/非表示できます。</p>
-        
         <div className="flex flex-wrap gap-4">
           {/* フィルターボタン：トグルスイッチスタイル */}
           <div className="flex items-center">
@@ -351,6 +439,33 @@ export default function JobsPage() {
               給与
               <span className="text-xs ml-2 text-gray-500">
                 {filters.hideUnknownSalary ? '(非表示中)' : '(表示中)'}
+              </span>
+            </span>
+          </div>
+
+          {/* ブックマークフィルター */}
+          <div className="flex items-center">
+            <button 
+              className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${filters.showOnlyBookmarks ? 'bg-blue-600' : 'bg-gray-300'}`}
+              onClick={() => setFilters(prev => ({ ...prev, showOnlyBookmarks: !prev.showOnlyBookmarks }))}
+              aria-pressed={filters.showOnlyBookmarks}
+            >
+              <span 
+                className={`absolute left-0.5 inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300
+                  ${filters.showOnlyBookmarks ? 'translate-x-6' : 'translate-x-0'}`} 
+              />
+            </button>
+            <span className="ml-3 text-gray-700 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" 
+                   className={`h-5 w-5 mr-1 ${filters.showOnlyBookmarks ? 'text-blue-500' : 'text-gray-400'}`} 
+                   viewBox="0 0 20 20" 
+                   fill="currentColor">
+                <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+              </svg>
+              ブックマーク済み
+              <span className="text-xs ml-2 text-gray-500">
+                {filters.showOnlyBookmarks ? '(表示中)' : '(すべて表示中)'}
               </span>
             </span>
           </div>
@@ -441,6 +556,9 @@ export default function JobsPage() {
                       </div>
                     </th>
                   ))}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                    ブックマーク
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -455,12 +573,31 @@ export default function JobsPage() {
                           {company[column]}
                         </td>
                       ))}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-16">
+                        <button
+                          onClick={() => toggleBookmark(company.id)}
+                          disabled={bookmarkLoading}
+                          className={`hover:text-blue-600 focus:outline-none disabled:opacity-50 border-2 rounded ${
+                            bookmarks.has(company.id) ? 'border-blue-500' : 'border-gray-300'
+                          }`}
+                        >
+                          {bookmarks.has(company.id) ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td 
-                      colSpan={selectedColumns.length + 1} 
+                      colSpan={selectedColumns.length + 2} 
                       className="px-6 py-4 text-center text-sm text-gray-500"
                     >
                       該当する企業データがありません

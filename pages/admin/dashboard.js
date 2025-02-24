@@ -17,15 +17,46 @@ function AuthWrapper({ children }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        // 管理者かどうかをチェック
+        const { data: adminCheck } = await supabase
+          .from('admin_users')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
+
+        if (!adminCheck) {
+          // 管理者でない場合はログアウト
+          await supabase.auth.signOut();
+          setSession(null);
+        } else {
+          setSession(session);
+        }
+      }
       setLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        // 状態変更時も同じチェックを実行
+        const { data: adminCheck } = await supabase
+          .from('admin_users')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
+
+        if (!adminCheck) {
+          await supabase.auth.signOut();
+          setSession(null);
+        } else {
+          setSession(session);
+        }
+      } else {
+        setSession(null);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -38,30 +69,39 @@ function AuthWrapper({ children }) {
     const password = e.target.password.value;
 
     try {
-      // まず通常のログインを試みる
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      // まず管理者テーブルでチェック
+      const { data: adminCheck, error: checkError } = await supabase
+        .from('admin_users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (!adminCheck || checkError) {
+        setError('管理者アカウントではありません');
+        return;
+      }
+
+      // 次に認証
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        setError('ログインに失敗しました');
+        return;
+      }
 
-      // 次に管理者チェック
-      const { data: adminCheck, error: checkError } = await supabase
-        .rpc('check_admin_password', {
-          admin_email: email,
-          admin_password: password
-        });
-
-      if (checkError || !adminCheck) {
-        // 管理者でない場合はログアウト
+      // メールドメインのチェック（学生アカウントでのアクセスを防ぐ）
+      if (email.endsWith('@inc.kisarazu.ac.jp')) {
         await supabase.auth.signOut();
-        setError('メールアドレスまたはパスワードが正しくありません');
+        setError('学生アカウントではアクセスできません');
         return;
       }
 
     } catch (error) {
-      setError(error.message);
+      setError('エラーが発生しました');
+      console.error(error);
     }
   };
 
