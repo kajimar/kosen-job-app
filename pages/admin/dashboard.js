@@ -82,10 +82,11 @@ function AuthWrapper({ children }) {
       }
 
       // 次に認証
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+      
 
       if (authError) {
         setError('ログインに失敗しました');

@@ -1,11 +1,116 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { debounce } from "lodash";
 
 // Supabaseクライアントの作成
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
+
+const useSessionManager = () => {
+  const [sessionId, setSessionId] = useState(null);
+
+  useEffect(() => {
+    const startNewSession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const sessionData = {
+          user_id: user.id,
+          student_id: user.email.split('@')[0],
+          companies_viewed: [],
+          actions: []
+        };
+
+        const { data: session, error } = await supabase
+          .from('session_logs')
+          .insert(sessionData)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('セッション作成エラー:', error);
+          // フォールバック処理
+          return;
+        }
+
+        // 現在のセッションIDをstateに保存
+        setSessionId(session.id);
+      } catch (error) {
+        console.error('セッション作成中にエラーが発生しました:', error);
+      }
+    };
+
+    // セッション終了時の処理
+    const endSession = async (sessionId) => {
+      if (!sessionId) return;
+
+      const { error } = await supabase
+        .from('session_logs')
+        .update({ session_end: new Date().toISOString() })
+        .eq('id', sessionId);
+
+      if (error) {
+        console.error('セッション終了エラー:', error);
+      }
+    };
+
+    // セッション開始
+    startNewSession();
+
+    // クリーンアップ（ページ離脱時）
+    return () => {
+      if (sessionId) {
+        endSession(sessionId);
+      }
+    };
+  }, []);
+
+  return sessionId;
+};
+
+const logCompanyView = async (companyId, sessionId) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const viewLog = {
+    user_id: user.id,
+    student_id: user.email.split('@')[0],
+    company_id: companyId,
+    session_id: sessionId,
+    view_duration: 0,  // 初期値
+    scroll_depth: 0    // 初期値
+  };
+
+  const { data, error } = await supabase
+    .from('company_view_logs')
+    .insert(viewLog)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('閲覧ログ記録エラー:', error);
+  }
+
+  return data ? data.id : null;
+};
+
+// 閲覧時間と深度の更新
+const updateViewMetrics = async (logId, duration, depth) => {
+  const { error } = await supabase
+    .from('company_view_logs')
+    .update({
+      view_duration: duration,
+      scroll_depth: depth
+    })
+    .eq('id', logId);
+
+  if (error) {
+    console.error('メトリクス更新エラー:', error);
+  }
+};
 
 export default function JobsPage() {
   const [companies, setCompanies] = useState([]);
@@ -24,6 +129,8 @@ export default function JobsPage() {
   // ブックマーク機能の状態とロジック
   const [bookmarks, setBookmarks] = useState(new Set());
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+
+  const sessionId = useSessionManager();
 
   // ブックマークの初期読み込み
   useEffect(() => {
@@ -79,6 +186,19 @@ export default function JobsPage() {
           newBookmarks.add(companyId);
           setBookmarks(newBookmarks);
         }
+      }
+
+      // ブックマーク操作をアクションとしてセッションに記録
+      if (sessionId) {
+        await supabase.from('session_logs')
+          .update({
+            actions: supabase.sql`array_append(actions, ${JSON.stringify({
+              type: isBookmarked ? 'remove_bookmark' : 'add_bookmark',
+              company_id: companyId,
+              timestamp: new Date().toISOString()
+            })})`
+          })
+          .eq('id', sessionId);
       }
     } catch (error) {
       console.error('ブックマーク処理エラー:', error);
@@ -353,6 +473,47 @@ export default function JobsPage() {
     );
   };
 
+  const handleCompanyView = async (companyId) => {
+    if (!sessionId) return;
+    const logId = await logCompanyView(companyId, sessionId);
+
+    // 閲覧開始時刻を記録
+    const startTime = new Date();
+    let scrollDepth = 0;
+
+    // スクロール深度の監視
+    const updateScrollDepth = () => {
+      const position = window.scrollY;
+      const height = document.documentElement.scrollHeight - window.innerHeight;
+      scrollDepth = Math.round((position / height) * 100);
+    };
+
+    // スクロールイベントのデバウンス
+    const debouncedUpdateScrollDepth = debounce(updateScrollDepth, 200);
+
+    window.addEventListener('scroll', debouncedUpdateScrollDepth);
+
+    // コンポーネントのアンマウント時に閲覧時間とスクロール深度を更新
+    return () => {
+      window.removeEventListener('scroll', debouncedUpdateScrollDepth);
+      const duration = Math.round((new Date() - startTime) / 1000);
+      updateViewMetrics(logId, duration, scrollDepth);
+    };
+  };
+
+  // デバウンス関数の実装
+  function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
   // UIのレンダリング
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -564,7 +725,7 @@ export default function JobsPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedCompanies.length > 0 ? (
                   sortedCompanies.map((company) => (
-                    <tr key={company.id} className="hover:bg-gray-50">
+                    <tr key={company.id} className="hover:bg-gray-50" onClick={() => handleCompanyView(company.id)}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 min-w-[8rem]">
                         {company.企業名}
                       </td>
